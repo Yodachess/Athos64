@@ -35,45 +35,16 @@ Some search heuristics may be enabled, disabled, or adjusted during development 
 
 ## Evaluation
 
-Athos64 supports two evaluation approaches.
-
-### Classical Evaluation
-
-The classical evaluation uses various parameters covering, among other things:
-
-* Material
-* Doubled pawns
-* Isolated pawns
-* Passed pawns
-* Advanced pawns
-* Bishop pair
-* Castling
-* King safety
-* Piece development
-* Rook positioning
-* Pawn structure
-* Game phase
-
-The evaluation parameters are grouped in:
-
-```text
-evaluationParams.cs
-```
+Athos64 supports one evaluation approach.
 
 ### NNUE Evaluation
 
-Athos64 can also use **NNUE (Efficiently Updatable Neural Network)** evaluation.
+Athos64 uses **NNUE (Efficiently Updatable Neural Network)** evaluation.
 
-The C# interface is implemented in:
-
-```text
-BrunoNNUE.cs
+The C# interface is implemented in:   BrunoNNUE.cs
 ```
 
-It communicates with:
-
-```text
-BrunoNNUE.dll
+It communicates with:    BrunoNNUE.dll
 ```
 
 This native library provides the functions required to initialize the networks and evaluate a chess position.
@@ -520,45 +491,15 @@ Certaines heuristiques peuvent être activées, désactivées ou ajustées au co
 
 ## Évaluation
 
-Athos64 dispose de deux approches d'évaluation.
-
-### Évaluation classique
-
-L'évaluation classique utilise différents paramètres concernant notamment :
-
-* Le matériel
-* Les pions doublés
-* Les pions isolés
-* Les pions passés
-* Les pions avancés
-* La paire de fous
-* Le roque
-* La sécurité du roi
-* Le développement des pièces
-* Le positionnement des tours
-* La structure de pions
-* La phase de jeu
-
-Les paramètres d'évaluation sont regroupés dans :
-
-```text
-evaluationParams.cs
-```
+Athos64 dispose de l'évaluation.
 
 ### Évaluation NNUE
 
-Athos64 peut également utiliser une évaluation **NNUE (Efficiently Updatable Neural Network)**.
+Athos64 utilise une évaluation **NNUE (Efficiently Updatable Neural Network)**.
 
-L'interface C# est implémentée dans :
-
-```text
-BrunoNNUE.cs
+L'interface C# est implémentée dans :  BrunoNNUE.cs
 ```
-
-Elle communique avec :
-
-```text
-BrunoNNUE.dll
+Elle communique avec :   BrunoNNUE.dll
 ```
 
 Cette bibliothèque native fournit les fonctions nécessaires pour initialiser les réseaux et évaluer une position.
