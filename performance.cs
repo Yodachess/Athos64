@@ -100,9 +100,9 @@ namespace Athos64
         /// Exécute la suite de tests unitaires automatisée pour valider l'algorithme du SEE.
         public static void ExecuterSuiteTestsSEE()
         {
-            Console.WriteLine("========================================================");
-            Console.WriteLine("🧪 BrunoMoteurUCI - Test du Static Exchange Evaluation ");
-            Console.WriteLine("========================================================");
+            Console.WriteLine("================================================");
+            Console.WriteLine("🧪 Atgos64 - Test du Static Exchange Evaluation ");
+            Console.WriteLine("================================================");
 
             // Instanciation de l'échiquier de Bruno
             Echiquier echiquierTest = new Echiquier();

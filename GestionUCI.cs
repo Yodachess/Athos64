@@ -244,6 +244,17 @@ namespace Athos64
                 case "/?":
                     Aide.Afficher(_fluxUCI);
                     break;
+                case "license":
+                    Console.WriteLine("    ---       Athos64 is a chess engine for playing and analyzing       ---");
+                    Console.WriteLine();
+                    Console.WriteLine("Athos64 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License ");
+                    Console.WriteLine("as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.");
+                    Console.WriteLine("For more information about Athos64: https://github.com/Yodachess/Athos64");
+                    Console.WriteLine("See the LICENSE file distributed with Athos64 for the complete license terms.");
+                    Console.WriteLine("Athos64 includes evaluation code derived from Stockfish, which is distributed under the GNU General Public License.");
+                    Console.WriteLine("Athos64 comes with ABSOLUTELY NO WARRANTY, see the GNU General Public License for details.");
+                    Console.WriteLine("");
+                    break;
                 case "quit":
                     Quitter(0);
                     break;
@@ -426,11 +437,11 @@ namespace Athos64
                 version = $"{version} x64";
             else
                 version = $"{version} x86";
-            _fluxUCI.EcrireLigne($"id name BrunoMoteurUCI {version}");
+            _fluxUCI.EcrireLigne($"id name Athos64 {version}");
             _fluxUCI.EcrireLigne("id author Bruno Courtois");
             _fluxUCI.EcrireLigne($"{version} Copyright © 2026");
             _fluxUCI.EcrireLigne();
-            _fluxUCI.EcrireLigne("option name UCI_EngineAbout type string default BrunoMoteurUCI.");
+            _fluxUCI.EcrireLigne("option name UCI_EngineAbout type string default Athos64.");
             _fluxUCI.EcrireLigne($"option name Depth type spin default {ProfondeurDeRecherche} min 1 max 20");
             _fluxUCI.EcrireLigne($"option name Threads type spin default {NombreThreads} min 1 max {NombreThreadsMax}");
             // _fluxUCI.EcrireLigne("option name MultiPV type spin default 2 min 1 max 3");

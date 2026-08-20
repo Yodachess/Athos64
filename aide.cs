@@ -19,9 +19,9 @@ namespace Athos64
         public static void Afficher(GestionFlux flux)
         {
             // --- SECTION FRANÇAISE ---
-            flux.EcrireLigne("info string ==============================================");
-            flux.EcrireLigne("info string   - BrunoMoteurUCI - Commandes Disponibles -  ");
-            flux.EcrireLigne("info string ==============================================");
+            flux.EcrireLigne("info string =======================================");
+            flux.EcrireLigne("info string =   Athos64 - Commandes Disponibles   =");
+            flux.EcrireLigne("info string =======================================");
             flux.EcrireLigne("info string   uci         : Affiche les informations d'identification du moteur d'échecs");
             flux.EcrireLigne("info string   setoption   : Définit une option (setoption name [value ])");
             flux.EcrireLigne("info string   position    : Définit la position (position [fen <fenstring>] | startpos  moves <move1> ... <movei>)");
@@ -43,15 +43,16 @@ namespace Athos64
             flux.EcrireLigne("info string   d           : Affiche une représentation de la console");
             flux.EcrireLigne("info string   debug       : Active ou désactive le mode debug");
             flux.EcrireLigne("info string   ? / help    : Affiche cet écran d'aide");
+            flux.EcrireLigne("info string   license     : Affiche les informations sur la licence");
             flux.EcrireLigne("info string   quit        : Ferme le programme proprement");
 
             // Écart visuel entre les deux langues
             flux.EcrireLigne("info string ");
 
             // --- ENGLISH SECTION ---
-            flux.EcrireLigne("info string ==============================================");
-            flux.EcrireLigne("info string   - BrunoMoteurUCI - Available Commands -     ");
-            flux.EcrireLigne("info string ==============================================");
+            flux.EcrireLigne("info string ====================================");
+            flux.EcrireLigne("info string =   Athos64 - Available Commands   =");
+            flux.EcrireLigne("info string ====================================");
             flux.EcrireLigne("info string   uci         : Displays chess engine identification information");
             flux.EcrireLigne("info string   setoption   : Sets an option (setoption name [value ])");
             flux.EcrireLigne("info string   position    : Sets the position (position [fen <fenstring>] | startpos  moves <move1> ... <movei>)");
@@ -73,6 +74,7 @@ namespace Athos64
             flux.EcrireLigne("info string   d           : Displays a representation of the board in console");
             flux.EcrireLigne("info string   debug       : Enables or disables debug mode");
             flux.EcrireLigne("info string   ? / help    : Displays this help screen");
+            flux.EcrireLigne("info string   license     : Displays license information");
             flux.EcrireLigne("info string   quit        : Closes the program cleanly");
             flux.EcrireLigne("info string ==============================================");
         }
