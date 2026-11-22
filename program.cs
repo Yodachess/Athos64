@@ -17,10 +17,8 @@
 using System;
 using System.Globalization;
 using System.Collections.Generic;
-using System.Net.Quic;
 using System.Runtime;
 using System.Text;
-using System.Diagnostics.Metrics;
 using Athos64;
 
 namespace Athos64
@@ -63,9 +61,12 @@ namespace Athos64
                 Console.Error.WriteLine($"Message: {exception.Message}");
                 Console.Error.WriteLine($"StackTrace: {exception.StackTrace}");
 
-                // 3. LA LIGNE MAGIQUE : Empêche la console de se fermer
-                Console.Error.WriteLine("\nAppuyez sur une touche pour fermer...");
-                Console.ReadKey();
+                // 3. Empêche la console de se fermer, sauf si l'entrée est redirigée (interface graphique)
+                if (!Console.IsInputRedirected)
+                {
+                    Console.Error.WriteLine("\nAppuyez sur une touche pour fermer...");
+                    Console.ReadKey();
+                }
             }
         }
     }

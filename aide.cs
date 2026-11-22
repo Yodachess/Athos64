@@ -32,7 +32,7 @@ namespace Athos64
             flux.EcrireLigne("info string   ponderhit   : Indique que le coup de réflexion a été joué");
             flux.EcrireLigne("info string   perft [x]   : Compte le nombre de positions légales à partir de la position actuelle jusqu'à une profondeur x");
             flux.EcrireLigne("info string   bench       : Execute un benchmark sur une sélection de positions FEN stratégiques");
-            flux.EcrireLigne("info string   eval        : Affiche le score classique et le score NNUE pour la position courante");
+            flux.EcrireLigne("info string   eval        : Identique à evalnnue (affiche le score NNUE de la position courante)");
             flux.EcrireLigne("info string   evalnnue    : Affiche le score NNUE à partir de la position courante");
             flux.EcrireLigne("info string   evalnnuefen : Affiche le score NNUE à partir d'une position FEN donnée");
             flux.EcrireLigne("info string   flip        : Inverse l'affichage de l'échiquier");
@@ -63,7 +63,7 @@ namespace Athos64
             flux.EcrireLigne("info string   ponderhit   : Indicates that the ponder move has been played");
             flux.EcrireLigne("info string   perft [x]   : Counts the number of legal positions from the current position up to depth x");
             flux.EcrireLigne("info string   bench       : Runs a benchmark on a selection of strategic FEN positions");
-            flux.EcrireLigne("info string   eval        : Displays the engine weights and score for the current position");
+            flux.EcrireLigne("info string   eval        : Same as evalnnue (displays the NNUE score of the current position)");
             flux.EcrireLigne("info string   evalnnue    : Displays the NNUE score from the current position");
             flux.EcrireLigne("info string   evalnnuefen : Displays the NNUE score from a given FEN position");
             flux.EcrireLigne("info string   flip        : Flips the chessboard display");

@@ -106,8 +106,12 @@ namespace Athos64
             _fluxUCI.EcrireLigne(sb.ToString());
             Console.Error.WriteLine("--- CRASH DÉTECTÉ ---");
             Console.Error.WriteLine(sb.ToString());
-            Console.Error.WriteLine("Appuyez sur une touche pour quitter...");
-            Console.ReadKey(); // Le programme attend ici, permettant de lire l'erreur.
+            if (!Console.IsInputRedirected)
+            {   // Pause seulement dans une vraie console : avec une interface graphique l'entrée est
+                // redirigée et ReadKey lèverait une exception qui masquerait l'erreur d'origine.
+                Console.Error.WriteLine("Appuyez sur une touche pour quitter...");
+                Console.ReadKey();
+            }
             Quitter(-1);
         }
 
@@ -178,58 +182,27 @@ namespace Athos64
                 case "bench":
                     PerfBench(jetons);
                     break;
-                case "eval":
-                    int scoreClassique = BrunoNNUE.EvaluerNNUE(_echiquier);
-                    int valeurNNUE = BrunoNNUE.Evaluer(_echiquier);
-                    int scoreNNUE = BrunoNNUE.ConvertirEnCpStockfish(valeurNNUE, _echiquier);
-
-                    Console.WriteLine($"info string Classique : {scoreClassique} cp");
-                    Console.WriteLine($"info string NNUE      : {scoreNNUE} cp");
-                    break;
-                case "evalnnue":    // Évalue la position actuelle de l'échiquier en utilisant le réseau neuronal NNUE
-                    if (!BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile))
-                    {
-                        Console.WriteLine("info string NNUE : réseaux indisponibles");
-                        break;
-                    }
-
-                    int valeurNNUEBoard = BrunoNNUE.Evaluer(_echiquier);
-                    int scoreNNUEBoard = BrunoNNUE.ConvertirEnCpStockfish(valeurNNUEBoard, _echiquier);
-
-                    Console.WriteLine($"info string Evaluation NNUE : {scoreNNUEBoard} cp");
+                case "eval":        // Évalue la position actuelle avec le réseau neuronal NNUE
+                case "evalnnue":
+                    CommandesDiagnostic.Eval(_echiquier);
                     break;
                 case "evalnnuefen":
-                    if (!BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile))
-                    {
-                        Console.WriteLine("info string NNUE : réseaux indisponibles");
-                        break;
-                    }
-                    if (jetons.Count < 2) 
-                    {
-                        Console.WriteLine("info string NNUE : FEN manquante");
-                        break; 
-                    }
-                    string fenNNUE = string.Join(" ", jetons.Skip(1)); 
-                    int scoreNNUEFen = BrunoNNUE.NNUE_EvalFEN(fenNNUE);
-                    Console.WriteLine($"info string Evaluation NNUE à partir du FEN: {scoreNNUEFen} cp");
+                    CommandesDiagnostic.EvalFen(jetons);
                     break;
                 case "flip":
-                    _echiquier.CoteBlanc = !_echiquier.CoteBlanc;
-                    Console.WriteLine($"info string Trait inversé. Au tour des {(_echiquier.CoteBlanc ? "Blancs" : "Noirs")}.");
+                    CommandesDiagnostic.Inverser(_echiquier);
                     break;
                 case "testsee":
-                    Performance.ExecuterSuiteTestsSEE();
+                    TestsSEE.Executer();
                     break;
                 case "triple":
-                    TesterRepetitionConsole();
+                    TestsRegles.Repetition();
                     break;
                 case "50coups":
-                    Tester50CoupsConsole(_echiquier);
+                    TestsRegles.CinquanteCoups(_echiquier);
                     break;
                 case "d":
-                    Console.WriteLine($"\nEchiquier actuel :" +
-                                    $"\n------------------");
-                    _echiquier.Afficher(); // Utile pour le debug console
+                    CommandesDiagnostic.AfficherEchiquier(_echiquier);
                     break;
                 case "debug":
                     if (jetons.Count > 1)
@@ -646,64 +619,6 @@ namespace Athos64
 			}
 			Performance.Executer(profondeur);
 		}
-		public static void TesterRepetitionConsole()
-        {   // Teste la détection de la répétition triple dans une séquence de coups
-            Echiquier e = new();
-            ChargementFen.ChargerFen(e, Echiquier.FenDepart, true);  // DemiCoupActuel passe à 0
-            // --- SÉQUENCE DE COUPS (Allers-retours de Cavaliers) ---
-            e.JouerCoup(6, 21);     // 1. Nf3 (g1 -> f3)
-            e.JouerCoup(62, 45);    // 1... Nf6 (g8 -> f6)
-            e.JouerCoup(21, 6);     // 2. Ng1 (f3 -> g1) - Retour Blancs (2ème apparition position initiale)
-            e.JouerCoup(45, 62);    // 2... Ng8 (f6 -> g8) - Retour Noirs
-            e.JouerCoup(6, 21);     // 3. Nf3 (g1 -> f3)
-            e.JouerCoup(62, 45);    // 3... Nf6 (g8 -> f6)
-            // 4. Ng1 (f3 -> g1) - Ce coup va provoquer la TRIPLE répétition au pli suivant
-            var etatPrecedent = e.JouerCoup(21, 6);
-            // On appelle Negamax en simulant un nœud enfant (distanceRacine = 1)
-            // On s'attend à ce qu'il voie la répétition et coupe immédiatement à 0
-            int score = Recherche.Negamax(e, profondeur: 2, distanceRacine: 1, alpha: -10000, beta: 10000);
-            e.AnnulerCoup(etatPrecedent);
-            if (score == 0)
-            {   // Affichage du verdict dans la console
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(" [OK] Test Répétition : Negamax a bien renvoyé 0 (Nulle).");
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($" [ÉCHEC] Test Répétition : Negamax a renvoyé {score} au lieu de 0.");
-            }
-            Console.ResetColor();
-            Console.WriteLine("Appuyez sur ENTRÉE pour continuer...");
-            Console.ReadLine();
-        }
-        public static void Tester50CoupsConsole(Echiquier e)
-        {   // Teste la règle des 50 coups dans une séquence de coups
-            Console.WriteLine("\n--- TEST UNITAIRE : RÈGLE DES 50 COUPS ---");
-            // On charge un FEN où le compteur (le 5ème champ "99") dit qu'on est à 99 demi-coups sans capture ni pion
-            ChargementFen.ChargerFen(e, "8/8/8/8/4k3/8/8/4K3 w - - 99 75", true);
-            Console.WriteLine($"[DEBUG] Compteur après FEN = {e.RegleDes50Coups}"); // Doit afficher 99
-            // Roi blanc bouge : e1 (4) -> f1 (5). Ce coup fait passer le compteur à 100 !
-            var etatPrecedent = e.JouerCoup(4, 5);
-            // On appelle Negamax au pli enfant (distanceRacine = 1)
-            int score = Recherche.Negamax(e, 2, 1, -10000, 10000);
-            // On nettoie le coup de test
-            e.AnnulerCoup(etatPrecedent);
-            if (score == 0)     // Résultat
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(" [OK] Test 50 Coups : Le compteur à 100 (50 coups complets) renvoie bien 0.");
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($" [ÉCHEC] Test 50 Coups : Score de {score} au lieu de 0.");
-            }
-            Console.ResetColor();
-            Console.WriteLine("Appuyez sur ENTRÉE pour continuer...");
-            Console.ReadLine();
-        }
-
         private  static void Stopper()
         {   // On force l'exception via l'instance de GestionTemps en cours
             Recherche.GestionTempsEnCours?.DemanderArret();
