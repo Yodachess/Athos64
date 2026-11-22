@@ -8,6 +8,11 @@ Athos64 : moteur d'échecs **UCI en C#**, 64 bits (bitboards), licence GPL-3.0-o
 
 Tout le code, les identifiants et les commentaires sont en français : garder cette convention.
 
+## Particularités voulues (ne pas les « corriger »)
+
+- Depuis la position initiale, `go` répond tout de suite (profondeur 1, 0 nœud) avec un premier coup qui change d'un lancement à l'autre : c'est voulu, pour varier les parties (artificiel mais plus agréable).
+- La recherche n'est pas reproductible (nœuds du `bench` différents d'un lancement à l'autre) : seul le perft sert de référence de non-régression.
+
 ## Pratiques (reprises de BrunoGUI_GenII et BrunoGUI_Dames)
 
 **Manière de travailler**
