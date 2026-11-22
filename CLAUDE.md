@@ -12,7 +12,7 @@ Tout le code, les identifiants et les commentaires sont en français : garder ce
 
 **Manière de travailler**
 - Avant de compiler : vérifier que l'exe du moteur ne tourne pas (un processus `Athos64` ouvert verrouille `bin`), sinon demander de le fermer. Ne jamais lancer le moteur ni une interface qui le pilote sans prévenir.
-- Commit seulement après un essai ; push seulement sur demande explicite (« pousse les commits ») ; après un push demandé, vérifier la CI toi-même (attendre la fin) et donner le résultat ; version publiée ou tag seulement sur demande.
+- Commit seulement après un essai ; après chaque commit, pousser sans demander (autorisation permanente de Bruno, 2026-11-22), jamais en force ; après un push, vérifier la CI toi-même (attendre la fin) et donner le résultat ; version publiée ou tag seulement sur demande.
 - `git add` avec la liste explicite des fichiers modifiés, jamais `git add -A` ni `commit -a` : Visual Studio modifie aussi le dépôt, et un changement qu'on n'a pas fait n'est pas à commiter sans accord.
 - `git` n'est pas dans le PATH de PowerShell sur cette machine : utiliser celui de Visual Studio 2022 (`C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\Git\cmd\git.exe`).
 - Messages de commit en français ; jamais de nom de personne à la 3e personne dans le code, les tests ou ce fichier : écrire la raison, éventuellement datée.
