@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projet
 
-Athos64 : moteur d'échecs **UCI en C#**, 64 bits (bitboards), licence GPL-3.0-or-later. Il évalue les positions avec les **réseaux de neurones NNUE de Stockfish 18** (`nn-b1a57edbea57.nnue` grand réseau, `nn-baff1ede1f90.nnue` petit réseau), appelés par `BrunoNNUE.cs` qui fait le pont vers `BrunoNNUE.dll` (DLL native construite à partir de https://github.com/VedantJoshi1409/stockfish_nnue_probe, mise à niveau avec les réseaux de Stockfish 18). Cadres du projet : `Athos64.csproj` (`net8.0`, `Nullable` activé, `AllowUnsafeBlocks`), `Athos64.sln`. Les fichiers `.nnue`, `BrunoNNUE.dll` et les `.epd` sont copiés à côté de l'exe (`PreserveNewest`).
+Athos64 : moteur d'échecs **UCI en C#**, 64 bits (bitboards), licence GPL-3.0-or-later. Il évalue les positions avec les **réseaux de neurones NNUE de Stockfish 18** (`nn-c288c895ea92.nnue` grand réseau, `nn-37f18f62d772.nnue` petit réseau ; ils ne sont pas dans git, le grand dépasse 100 Mo : les copier à côté de l'exe), appelés par `BrunoNNUE.cs` qui fait le pont vers `BrunoNNUE.dll` (DLL native construite à partir de https://github.com/VedantJoshi1409/stockfish_nnue_probe, mise à niveau avec les réseaux de Stockfish 18). Cadres du projet : `Athos64.csproj` (`net8.0`, `Nullable` activé, `AllowUnsafeBlocks`), `Athos64.sln`. `BrunoNNUE.dll` est copiée à côté de l'exe (`PreserveNewest`) ; les `.nnue` sont à y placer à la main.
 
 Tout le code, les identifiants et les commentaires sont en français : garder cette convention.
 
