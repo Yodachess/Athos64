@@ -38,10 +38,8 @@ namespace Athos64
             // Organise le code pour minimiser les allocations(en réutilisant des buffers préalloués).
             // C’est cela qui permet au moteur d’échecs d’être fluide et rapide.
 
-            // EvalParams.ChargerDepuisIni("eval.ini");
-            // Test de l'utilisation de NNUE si activé dans les paramètres
+            // Chargement des réseaux de neurones NNUE (cherchés dans le dossier courant)
             BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile);
-            // On continue avec l'évaluation classique si NNUE n'est pas utilisé
 
 
             await using var fluxEntrée = Console.OpenStandardInput();

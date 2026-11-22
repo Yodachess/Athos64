@@ -100,13 +100,10 @@ namespace Athos64
             // 6. Numéro du coup actuel
             if (int.TryParse(coupentier, out int f)) e.NumeroDeCoup = f;
 
-            // 7. Calcul score matériel
-            e.InitialiserScoresMateriels();
-
-            // 8. Calcul de la clé Zobrist initiale
+            // 7. Calcul de la clé Zobrist initiale
             e.CleActuelle = e.CalculerCleComplete();
 
-            // 9.Position intiale dans l'historique des clés
+            // 8. Position initiale dans l'historique des clés
             e.HistoriqueCles[e.DemiCoupActuel] = e.CleActuelle;
             e.DemiCoupActuel++; // DemiCoupActuel passe à 1
 

@@ -285,23 +285,14 @@ namespace Athos64
         {   // Traite la commande "go" sur le thread asynchrone
             int profondeur = ProfondeurDeRecherche;
             var gestionTemps = new GestionTemps();
-            bool estModePonder = false;
             int wtime = -1;
             int btime = -1;
             int winc = 0;
             int binc = 0;
             int movestogo = 0;
 
-            for (var i = 1; i < jetons.Count; i++)
-            {   // 1. On cherche d'abord si le flag "ponder" est présent dans la commande
-                if (jetons[i].Equals("ponder", StringComparison.OrdinalIgnoreCase))
-                {
-                    estModePonder = true;
-                    break;
-                }
-            }
             for (int i = 1; i < jetons.Count; i++)
-            {   // 2. On parcourt les jetons pour extraire les paramètres de la commande "go"
+            {   // 1. On parcourt les jetons pour extraire les paramètres de la commande "go"
                 string jeton = jetons[i].ToLower();
 
                 if (jeton == "infinite")

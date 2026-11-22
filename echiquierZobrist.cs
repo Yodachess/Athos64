@@ -1,4 +1,4 @@
-﻿// ┌▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄┐
+// ┌▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄┐
 // █ Athos64 - Moteur d'échecs UCI en C#                                    █
 // █ Copyright (C) 2026 Bruno COURTOIS                                      █
 // █ SPDX-License-Identifier: GPL-3.0-or-later                              █
@@ -9,7 +9,6 @@
 // ├─ Structure "EtatEchiquier" pour sauvegarder l'état de l'échiquier avant un coup
 // ├─ "CalculerCleComplete" calcule la clé Zobrist complète à partir de l'état actuel de l'échiquier
 // ├─ "ObtenirIndexPieceZobrist" retourne l'index Zobrist pour une pièce donnée sur une case donnée
-// ├─ "VerifierCleZobrist" vérifie l'intégrité de la clé Zobrist actuelle
 // ├─ "VerifierIntegriteZobrist" vérifie l'intégrité de la clé Zobrist actuelle (utilisé pour le débogage)
 // Classe statique "Zobrist" pour gérer la table de hachage Zobrist.
 // ├─ Contructeur "Zobrist" initialise la table Zobrist avec des nombres aléatoires
@@ -69,28 +68,6 @@ namespace Athos64
 
             return -1;
         }
-        public void VerifierCleZobrist()
-        {
-            // 1. On recalcule une clé totalement neuve à partir de l'état actuel des bitboards
-            ulong cleRecalculee = CalculerCleComplete();
-
-            // 2. Comparaison avec ta variable CleActuelle
-            if (CleActuelle != cleRecalculee)
-            {
-                Console.WriteLine("\n!!! BUG ZOBRIST DETECTÉ !!!");
-                Console.WriteLine($"Coup numéro : {NumeroDeCoup}");
-                Console.WriteLine($"Clé Incrémentale (CleActuelle) : {CleActuelle:X}");
-                Console.WriteLine($"Clé Recalculée (Correcte)    : {cleRecalculee:X}");
-
-                // On affiche ce qui pourrait causer l'erreur
-                Console.WriteLine($"Trait : {(CoteBlanc ? "Blancs" : "Noirs")}");
-                Console.WriteLine($"Case En Passant actuelle : {CaseEnPassant}");
-
-                // Bloquer ici pour inspecter si tu es en mode Debug
-                throw new Exception("Dérive de la clé Zobrist !");
-            }
-        }
-
         public bool VerifierIntegriteZobrist()  // Utilisé pour Debug uniquement
         {   // Cette méthode est destinée à être utilisée après l'application d'un mouvement via JouerCoup.
             // On recalcule tout de zéro

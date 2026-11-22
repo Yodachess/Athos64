@@ -201,9 +201,8 @@ namespace Athos64
                         }
                     }
                     catch (ArretRechercheException) { /* Arrêt propre */ }
-                    catch (Exception ex)
-                    {
-                        // Console.Error.WriteLine($"Erreur Thread Aide {threadId}: {ex.Message}");
+                    catch (Exception)
+                    {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale
                     }
                 });
             }       

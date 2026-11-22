@@ -9,9 +9,7 @@
 // ├─ Constructeur statique "NNUE" pour initialiser la DLL
 // ├─ "Initialiser" initialise les réseaux de neurones à partir des fichiers fournis
 // ├─ "EvaluerEchiquier" retourne l'évaluation à partir de l'échiquier fourni en entrée
-// ├─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
-// ├─ "EvaluerPieces" retourne l'évaluation à partir des tableaux de cases et pièces
-// └─ "AjouterPieces" ajoute les pièces et leurs cases à partir d'un bitboard
+// └─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
 
 using System;
 using System.IO;
@@ -137,45 +135,6 @@ namespace Athos64
             {
                 int caseEchiquier = BitOperations.TrailingZeroCount(bitboard);
                 pieceBoard[caseEchiquier] = piece;
-                bitboard &= bitboard - 1;
-            }
-        }
-        public static int EvaluerPieces(Echiquier echiquier)
-        {   // Convertir l'échiquier en tableaux de pièces et de cases pour le NNUE de Stockfish
-            int[] pieces = new int[32];
-            int[] squares = new int[32];
-            int nombrePieces = 0;
-
-            AjouterPieces(echiquier.PionsBlancs, 1, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.CavaliersBlancs, 2, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.FousBlancs, 3, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.ToursBlanches, 4, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.ReineBlanche, 5, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.RoiBlanc, 6, pieces, squares, ref nombrePieces);
-
-            AjouterPieces(echiquier.PionsNoirs, 9, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.CavaliersNoirs, 10, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.FousNoirs, 11, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.ToursNoires, 12, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.ReineNoire, 13, pieces, squares, ref nombrePieces);
-            AjouterPieces(echiquier.RoiNoir, 14, pieces, squares, ref nombrePieces);
-
-            // Stockfish attend true = Blancs, false = Noirs
-            bool blancsAuTrait = echiquier.CoteBlanc;
-
-            return NNUE_EvalPieces(pieces, squares, nombrePieces, blancsAuTrait ? 1 : 0, echiquier.RegleDes50Coups);
-        }
-
-        private static void AjouterPieces(ulong bitboard, int codePiece, int[] pieces, int[] squares, ref int nombrePieces)
-        {   // Ajoute les pièces et leurs cases à partir d'un bitboard
-            while (bitboard != 0)
-            {
-                int caseIndex = BitOperations.TrailingZeroCount(bitboard);
-
-                pieces[nombrePieces] = codePiece;
-                squares[nombrePieces] = caseIndex;
-                nombrePieces++;
-
                 bitboard &= bitboard - 1;
             }
         }

@@ -47,9 +47,6 @@ namespace Athos64
             public int RegleDes50Coups;
             public int NumeroDeCoup;
             public int DemiCoup;
-            public int ScoreMG;
-            public int ScoreEG;
-            public int Phase;
         }
 
         public EtatEchiquier SauvegarderEtat()
@@ -88,11 +85,7 @@ namespace Athos64
 
                 // Initialisés par défaut, modifiés par JouerCoup si besoin
                 EstPriseEnPassant = false,
-                CasePionPris = null,
-
-                ScoreMG = this.ScoreMaterielMG,
-                ScoreEG = this.ScoreMaterielEG,
-                Phase = this.PhaseActuelle
+                CasePionPris = null
             };
         }
         public void RestaurerEtat(EtatEchiquier etat)
@@ -120,10 +113,6 @@ namespace Athos64
             NumeroDeCoup = etat.NumeroDeCoup;
             this.DemiCoupActuel = etat.DemiCoup;
             CleActuelle = etat.CleZobrist;
-
-            this.ScoreMaterielMG = etat.ScoreMG;
-            this.ScoreMaterielEG = etat.ScoreEG;
-            this.PhaseActuelle = etat.Phase;
         }
         public Echiquier Cloner()
         {
@@ -171,28 +160,6 @@ namespace Athos64
             bool estUnRoi = blanc ? (rBlanc0 & departBit) != 0 : (rNoir0 & departBit) != 0;
             bool estUneTour = blanc ? (tBlanc0 & departBit) != 0 : (tNoir0 & departBit) != 0;
 
-            // --- MISE À JOUR MATÉRIEL (CAPTURE CLASSIQUE) ---
-            if (typeVictime != -1)
-            {
-                // On récupère le type de pièce (0-5 pour Blanc, 6-11 pour Noir)
-                // On utilise (typeVictime % 6) pour avoir l'index universel (0=Pion, 1=Cavalier...)
-                int indexPiece = typeVictime % 6;
-                int vMG = EvalParams.ValeursMG[indexPiece];
-                int vEG = EvalParams.ValeursEG[indexPiece];
-                int vPh = EvalParams.ValeursPhase[indexPiece];
-
-                if (blanc) // Le blanc capture une pièce noire
-                {
-                    ScoreMaterielMG += vMG;
-                    ScoreMaterielEG += vEG;
-                }
-                else // Le noir capture une pièce blanche
-                {
-                    ScoreMaterielMG -= vMG;
-                    ScoreMaterielEG -= vEG;
-                }
-                PhaseActuelle -= vPh;
-            }
             // =========================
             // 1. GESTION ZOBRIST : AVANT LE MOUVEMENT
             // =========================
@@ -277,14 +244,6 @@ namespace Athos64
                     int casePionCapture = blanc ? caseArrivee - 8 : caseArrivee + 8;
                     int typePionCapture = blanc ? 6 : 0; // Pion noir si blanc joue, sinon pion blanc
 
-                    // NOUVEAU : Matériel En Passant
-                    int vMG_EP = EvalParams.ValeursMG[0];
-                    int vEG_EP = EvalParams.ValeursEG[0];
-                    int vPh_EP = EvalParams.ValeursPhase[0];
-                    if (blanc) { ScoreMaterielMG += vMG_EP; ScoreMaterielEG += vEG_EP; }
-                    else { ScoreMaterielMG -= vMG_EP; ScoreMaterielEG -= vEG_EP; }
-                    PhaseActuelle -= vPh_EP;
-
                     // Mise à jour Zobrist pour le pion mangé en passant
                     CleActuelle ^= Zobrist.Pieces[typePionCapture, casePionCapture];
 
@@ -309,14 +268,7 @@ namespace Athos64
                 if (promotion.HasValue)
                 {
                     int indexPromuZobrist = ObtenirIndexPromotionZobrist(promotion.Value, blanc);
-                    int indexPiecePromue = indexPromuZobrist % 6;
                     CleActuelle ^= Zobrist.Pieces[indexPromuZobrist, caseArrivee];
-
-                    // NOUVEAU : Matériel Promotion (Différence Pion vs Pièce)
-                    int diffMG = EvalParams.ValeursMG[indexPiecePromue] - EvalParams.ValeursMG[0];
-                    int diffEG = EvalParams.ValeursEG[indexPiecePromue] - EvalParams.ValeursEG[0];
-                    if (blanc) { ScoreMaterielMG += diffMG; ScoreMaterielEG += diffEG; }
-                    else { ScoreMaterielMG -= diffMG; ScoreMaterielEG -= diffEG; }
 
                     if (blanc)
                     {

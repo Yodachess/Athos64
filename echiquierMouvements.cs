@@ -23,7 +23,6 @@
 // ├─ "EstPieceGlissanteValide" vérifie si une pièce glissante (fou, tour, reine) peut attaquer une case donnée.
 // ├─ [Perft] "Perft" effectue un test de performance en comptant tous les mouvements légaux jusqu'à une profondeur donnée
 // ├─ [Perft] "TestPerft" lancement du test à la profondeur donnée ou 5 si pas de profondeur spécifiée
-// ├─ [Perft] "TestPerftInitial" lance le test de performance à partir de la position initiale
 // ├─ [Perft] "DivisionPerft" effectue un test de performance et affiche le nombre de mouvements pour chaque coup initial
 // ├─ [Perft] "TraduireEnNotationAlgebraique" traduire un mouvement en notation algébrique (ex: e2e4, g1f3, e7e8q)
 // └─ [Perft] "IndiceVersAlgebrique" convertit un indice de case (0-63) en notation algébrique (ex: 0 -> a1, 63 -> h8).
@@ -897,38 +896,6 @@ namespace Athos64
                 Console.WriteLine($"Depth {i} = {noeuds} | Temps: {secondes:F3}s | NPS: {nps:N0}");
             }
         }
-        public void TestPerftInitial()
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-                ulong noeuds;
- 
-                if (i == 5)
-                {
-                    // Note : Pour que le NPS soit précis ici, il faudrait que DivisionPerft 
-                    // retourne le nombre total de nœuds.
-                    DivisionPerft(i);
-                    sw.Stop();
-                    noeuds = 119060324; // On connaît le total pour la profondeur 6
-                }
-                else
-                {
-                    noeuds = Perft(i);
-                    sw.Stop();
-                }
- 
-                noeuds = Perft(i);
-                sw.Stop();
-
-                double secondes = sw.Elapsed.TotalSeconds;
-                // Calcul du NPS (évite la division par zéro si c'est trop rapide)
-                double nps = secondes > 0 ? noeuds / secondes : 0;
-
-                Console.WriteLine($"Depth {i} = {noeuds} | Temps: {secondes:F3}s | NPS: {nps:N0}");
-            }
-        }
-       
         public void DivisionPerft(int profondeur)
         {
             Console.WriteLine($"--- Division Perft (Profondeur {profondeur}) ---");

@@ -36,7 +36,6 @@ namespace Athos64
             flux.EcrireLigne("info string   evalnnue    : Affiche le score NNUE à partir de la position courante");
             flux.EcrireLigne("info string   evalnnuefen : Affiche le score NNUE à partir d'une position FEN donnée");
             flux.EcrireLigne("info string   flip        : Inverse l'affichage de l'échiquier");
-            flux.EcrireLigne("info string   optim       : Optimisation Texel avec fichiers .epd");
             flux.EcrireLigne("info string   testsee     : Test du static exchange evaluation (SEE)");
             flux.EcrireLigne("info string   triple      : Teste la détection de la répétition triple dans une séquence de coups");
             flux.EcrireLigne("info string   50coups     : Teste la règle des 50 coups dans une séquence de coups");
@@ -67,7 +66,6 @@ namespace Athos64
             flux.EcrireLigne("info string   evalnnue    : Displays the NNUE score from the current position");
             flux.EcrireLigne("info string   evalnnuefen : Displays the NNUE score from a given FEN position");
             flux.EcrireLigne("info string   flip        : Flips the chessboard display");
-            flux.EcrireLigne("info string   optim       : Texel optimization using .epd files");
             flux.EcrireLigne("info string   testsee     : Test of Static Exchange Evaluation (SEE)");
             flux.EcrireLigne("info string   triple      : Tests threefold repetition detection in a move sequence");
             flux.EcrireLigne("info string   50coups     : Tests the 50-move rule in a move sequence");

@@ -8,7 +8,6 @@
 // Classe (partie) de gestion de l'échiquier.
 // ├─ "InitialiserPositionDeDepart" initialise la position de départ standard
 // ├─ "GenererMouvementsLegaux" génère un bitboard de tous les mouvements légaux pour le côté qui joue
-// ├─ "InitialiserScoresMateriels" initialise les scores matériels pour l'évaluation
 // ├─ "IdentifierTypePiece" retourne le type de pièce sur une case donnée
 // ├─ "ObtenirToutesLesPieces" retourne un bitboard de toutes les pièces sur l'échiquier
 // ├─ "ObtenirPiecesBlanches" 
@@ -65,14 +64,6 @@ namespace Athos64
         public enum TypePiece { Vide, Pion, Cavalier, Fou, Tour, Reine, Roi }
         public static readonly int[] ValeursPieces = [0, 100, 320, 330, 500, 900, 20000];
 
-        // Ordre Zobrist : Pion, Cavalier, Fou, Tour, Reine, Roi (Blancs puis Noirs)
-        private static readonly int[] ValeursMG = [100, 320, 330, 500, 900, 0, -100, -320, -330, -500, -900, 0];
-        private static readonly int[] ValeursEG = [150, 310, 340, 550, 950, 0, -150, -310, -340, -550, -950, 0];
-        private static readonly int[] PoidsPhase = [0, 1, 1, 2, 4, 0, 0, 1, 1, 2, 4, 0];
-
-        public int ScoreMaterielMG;
-        public int ScoreMaterielEG;
-        public int PhaseActuelle;
         public Echiquier()
         {   // Initialise l'échiquier à la position de départ standard
             InitialiserPositionDeDepart();
@@ -114,40 +105,6 @@ namespace Athos64
             }
             return mouvementsLegaux;
         }
-        public void InitialiserScoresMateriels()
-        {
-            ScoreMaterielMG = 0;
-            ScoreMaterielEG = 0;
-            PhaseActuelle = 0;
-
-            for (int i = 0; i < 64; i++)
-            {
-                int pieceZobrist = ObtenirIndexPieceZobrist(i);
-                if (pieceZobrist != -1)
-                {
-                    bool estBlanc = pieceZobrist < 6;
-                    int indexType = pieceZobrist % 6;
-                    /*
-                    int vMG = EvalParams.ValeursMG[indexType];
-                    int vEG = EvalParams.ValeursEG[indexType];
-                    int vPh = EvalParams.ValeursPhase[indexType];
-                    
-                    if (estBlanc)
-                    {
-                        ScoreMaterielMG += vMG;
-                        ScoreMaterielEG += vEG;
-                    }
-                    else
-                    {
-                        ScoreMaterielMG -= vMG;
-                        ScoreMaterielEG -= vEG;
-                    }
-                    PhaseActuelle += vPh;
-                    */
-                }
-            }
-        }
-
         public TypePiece IdentifierTypePiece(int caseIndex)
         {   // Retourne le type de pièce sur la case donnée, ou "Vide" si aucune pièce. 
             ulong bit = 1UL << caseIndex;
