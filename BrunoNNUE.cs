@@ -7,7 +7,7 @@
 
 // Classe faisant le pont pour manipuler les réseaux de neurones
 // ├─ Constructeur statique "NNUE" pour initialiser la DLL
-// ├─ "Initialiser" initialise les réseaux de neurones à partir des fichiers fournis
+// ├─ "Initialiser" initialise le réseau de neurones à partir du fichier fourni
 // ├─ "EvaluerEchiquier" retourne l'évaluation à partir de l'échiquier fourni en entrée
 // └─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
 
@@ -20,14 +20,14 @@ namespace Athos64
 {   
     public static class BrunoNNUE
     {   // Création de la DLL à partir de  https://github.com/VedantJoshi1409/stockfish_nnue_probe
-        // puis mise à niveau avec les fichiers de réseaux de neurones de Stockfish 18 (big.nnue et small.nnue)
+        // puis mise à niveau avec le réseau de neurones de Stockfish 19 (un seul réseau)
         private const string NOM_DLL = "BrunoNNUE.dll";
         private static bool _nnueInitialise = false;
         private static bool _nnueDisponible = false;
 
         // 1. Initialisation : 
         [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private static extern int NNUE_Init(IntPtr bigNetFile, IntPtr smallNetFile);
+        private static extern int NNUE_Init(IntPtr netFile);
 
         // 2. Évaluation par FEN : 
         [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -43,29 +43,27 @@ namespace Athos64
 
 
         // --- Wrapper C# propre pour mon moteur ---
-        public static bool Initialiser(string bigNet, string smallNet)
+        public static bool Initialiser(string reseau)
         {
             if (_nnueInitialise)    // Si les réseaux sont déjà initialisés, on ne réinitialise pas
                 return _nnueDisponible;
 
-            IntPtr pBigNet = IntPtr.Zero;
-            IntPtr pSmallNet = IntPtr.Zero;
+            IntPtr pReseau = IntPtr.Zero;
 
             try
             {   // Allocation des chaînes en mémoire native au format UTF-8 (compatible C/C++)
-                pBigNet = Marshal.StringToCoTaskMemUTF8(bigNet);
-                pSmallNet = Marshal.StringToCoTaskMemUTF8(smallNet);
+                pReseau = Marshal.StringToCoTaskMemUTF8(reseau);
 
                 // Appel de la fonction C++
-                int resultat = NNUE_Init(pBigNet, pSmallNet);
+                int resultat = NNUE_Init(pReseau);
                 // (Note : la fonction C++ donne 1 = succès, 0 = échec)
                 _nnueDisponible = resultat != 0;    
                 _nnueInitialise = true;
 
                 if (_nnueDisponible)
-                    Console.WriteLine($"[NNUE] Réseaux de neurones {bigNet} et {smallNet} chargés avec succès !\n");
+                    Console.WriteLine($"[NNUE] Réseau de neurones {reseau} chargé avec succès !\n");
                 else
-                    Console.WriteLine($"[NNUE ERREUR] Échec du chargement des réseaux. Code = {resultat}");
+                    Console.WriteLine($"[NNUE ERREUR] Échec du chargement du réseau. Code = {resultat}");
 
                 return _nnueDisponible;
             }
@@ -78,16 +76,14 @@ namespace Athos64
             }
             finally
             {   // Libération de la mémoire native allouée pour éviter les fuites
-                if (pBigNet != IntPtr.Zero) Marshal.FreeCoTaskMem(pBigNet);
-                if (pSmallNet != IntPtr.Zero) Marshal.FreeCoTaskMem(pSmallNet);
+                if (pReseau != IntPtr.Zero) Marshal.FreeCoTaskMem(pReseau);
             }
         }
         public static int Evaluer(Echiquier echiquier)
         {
             if (!_nnueInitialise)
             {
-                if (!Initialiser(ProtocoleUCI.BigNetworkFile,
-                                 ProtocoleUCI.SmallNetworkFile))
+                if (!Initialiser(ProtocoleUCI.NetworkFile))
                     return 0;
             }
 
@@ -155,8 +151,8 @@ namespace Athos64
             double m = Math.Clamp(materiel, 17, 78) / 58.0;
 
             double a =
-                ((-72.32565836 * m + 185.93832038) * m - 144.58862193) * m
-                + 416.44950446;
+                ((-142.72052667 * m + 372.35176398) * m - 340.71073572) * m
+                + 415.23490212;
 
             return (int)Math.Round(100.0 * valeur / a);
         }

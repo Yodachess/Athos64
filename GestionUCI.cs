@@ -48,8 +48,7 @@ namespace Athos64
         public static int MultiPV = 1; // Valeur par défaut configurée dans le flux UCI
         public static int NombreThreads { get; private set; } = 4;  // Nombre de threads configure via UCI (4 par défaut)
         public static int NombreThreadsMax = Environment.ProcessorCount; // Nombre de threads maximum autorisé
-        public static string BigNetworkFile = "nn-c288c895ea92.nnue"; // Nom du fichier du réseau neuronal principal
-        public static string SmallNetworkFile = "nn-37f18f62d772.nnue"; // Nom du fichier du réseau neuronal secondaire
+        public static string NetworkFile = "nn-1a298aa575a0.nnue"; // Nom du fichier du réseau neuronal (Stockfish 19 : un seul réseau)
 
         public readonly GestionFlux _fluxUCI; 
         private readonly Queue<List<string>> _fileAsynchrone;
@@ -396,7 +395,7 @@ namespace Athos64
         }
         private void Uci()
         {   // Envoie les informations d'identification du moteur d'échecs au protocole UCI
-            var version = "V 1.25 NNUE_SF18";
+            var version = "V 1.25 NNUE_SF19";
             if (Environment.Is64BitProcess)
                 version = $"{version} x64";
             else
@@ -410,8 +409,7 @@ namespace Athos64
             _fluxUCI.EcrireLigne($"option name Threads type spin default {NombreThreads} min 1 max {NombreThreadsMax}");
             // _fluxUCI.EcrireLigne("option name MultiPV type spin default 2 min 1 max 3");
             _fluxUCI.EcrireLigne("option name Ponder type check default true");
-            _fluxUCI.EcrireLigne($"option name EvalFile type string default {BigNetworkFile}");
-            _fluxUCI.EcrireLigne($"option name EvalFileSmall type string default {SmallNetworkFile}");
+            _fluxUCI.EcrireLigne($"option name EvalFile type string default {NetworkFile}");
             _fluxUCI.EcrireLigne("uciok");
         }
 

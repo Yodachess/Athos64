@@ -1,4 +1,4 @@
-﻿// ┌▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄┐
+// ┌▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄┐
 // █ Athos64 - Moteur d'échecs UCI en C#                                    █
 // █ Copyright (C) 2026 Bruno COURTOIS                                      █
 // █ SPDX-License-Identifier: GPL-3.0-or-later                              █
@@ -39,7 +39,7 @@ namespace Athos64
             // C’est cela qui permet au moteur d’échecs d’être fluide et rapide.
 
             // Chargement des réseaux de neurones NNUE (cherchés dans le dossier courant)
-            BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile);
+            BrunoNNUE.Initialiser(ProtocoleUCI.NetworkFile);
 
 
             await using var fluxEntrée = Console.OpenStandardInput();

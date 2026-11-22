@@ -371,9 +371,9 @@ namespace Athos64
                     {
                         averageScore = (score + averageScore) / 2;
                     }
-                    // Calcul de l'optimism selon Stockfish 18
-                    int optimism = 142 * averageScore /
-                                   (Math.Abs(averageScore) + 91);
+                    // Calcul de l'optimism selon Stockfish 19
+                    int optimism = 114 * averageScore /
+                                   (Math.Abs(averageScore) + 85);
                     // Stockfish utilise optimism[WHITE] et optimism[BLACK].
                     if (echiquier.CoteBlanc)
                     {

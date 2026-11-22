@@ -21,7 +21,7 @@ namespace Athos64
     {
         public static void Eval(Echiquier echiquier)
         {   // Évalue la position actuelle avec le réseau neuronal NNUE
-            if (!BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile))
+            if (!BrunoNNUE.Initialiser(ProtocoleUCI.NetworkFile))
             {
                 Console.WriteLine("info string NNUE : réseaux indisponibles");
                 return;
@@ -33,7 +33,7 @@ namespace Athos64
 
         public static void EvalFen(List<string> jetons)
         {   // Évalue une FEN fournie avec la commande : evalnnuefen <fen>
-            if (!BrunoNNUE.Initialiser(ProtocoleUCI.BigNetworkFile, ProtocoleUCI.SmallNetworkFile))
+            if (!BrunoNNUE.Initialiser(ProtocoleUCI.NetworkFile))
             {
                 Console.WriteLine("info string NNUE : réseaux indisponibles");
                 return;

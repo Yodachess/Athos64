@@ -55,11 +55,10 @@ The goal is to keep Athos64's own search while using NNUE for position evaluatio
 
 ## NNUE Networks
 
-The engine uses the following NNUE networks (Stockfish 18). They are not stored in the repository (the big one exceeds GitHub's 100 MB limit): copy them next to the executable.
+The engine uses the following NNUE network (Stockfish 19, a single network). It is not stored in the repository (about 98 MB): copy it next to the executable.
 
 ```text
-nn-37f18f62d772.nnue
-nn-c288c895ea92.nnue
+nn-1a298aa575a0.nnue
 ```
 
 The exact networks used depend on the version of `BrunoNNUE.dll`.
@@ -155,9 +154,8 @@ Athos64/
 ├── Tests/              (xUnit tests)
 │
 ├── BrunoNNUE.dll
-├── nn-c288c895ea92.nnue   (non versionné)
-├── nn-37f18f62d772.nnue
-│
+├── nn-1a298aa575a0.nnue   (not versioned)
+├── │
 ├── Athos64.csproj
 ├── Athos64.sln
 ├── LICENSE.txt
@@ -511,11 +509,10 @@ L'objectif est de conserver la recherche propre à Athos64 tout en utilisant NNU
 
 ## Réseaux NNUE
 
-Le moteur utilise les réseaux NNUE suivants (Stockfish 18). Ils ne sont pas dans le dépôt (le grand dépasse la limite de 100 Mo de GitHub) : les copier à côté de l'exécutable.
+Le moteur utilise le réseau NNUE suivant (Stockfish 19, un seul réseau). Il n'est pas dans le dépôt (environ 98 Mo) : le copier à côté de l'exécutable.
 
 ```text
-nn-37f18f62d772.nnue
-nn-c288c895ea92.nnue
+nn-1a298aa575a0.nnue
 ```
 
 Les réseaux effectivement utilisés dépendent de la version de `BrunoNNUE.dll`.
@@ -611,9 +608,8 @@ Athos64/
 ├── Tests/              (tests xUnit)
 │
 ├── BrunoNNUE.dll
-├── nn-c288c895ea92.nnue   (non versionné)
-├── nn-37f18f62d772.nnue
-│
+├── nn-1a298aa575a0.nnue   (non versionné)
+├── │
 ├── Athos64.csproj
 ├── Athos64.sln
 ├── LICENSE.txt
