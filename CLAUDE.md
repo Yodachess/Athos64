@@ -32,4 +32,19 @@ Tout le code, les identifiants et les commentaires sont en français : garder ce
 ## À vérifier avec Bruno
 
 - `net8.0` n'est plus pris en charge depuis le 2026-11-10 ; BrunoGUI_GenII et BrunoGUI_Dames sont passés à `net10.0` (Visual Studio 2026 requis, VS 2022 ne le prend pas en charge). Migration non faite ici.
-- Le dépôt n'a ni projet de tests, ni CI, ni `Directory.Build.props` : à ajouter plus tard si Bruno le veut, sur le modèle des deux autres projets.
+- Le dépôt n'a ni CI ni `Directory.Build.props` : à ajouter plus tard si Bruno le veut, sur le modèle des deux autres projets.
+- 5 avertissements de compilation restent (`evaluationParams.cs` ×3, `recherche.cs` ligne 204, `estModePonder` dans `GestionUCI.cs`) : à traiter pour tenir la règle « zéro avertissement ».
+
+## Commandes
+
+```powershell
+dotnet build Athos64.sln -c Release -p:Platform=x64
+```
+
+```powershell
+dotnet test Tests
+```
+
+- `Tests\` (xUnit, `Athos64.Tests.csproj`, 36 tests, ~70 s) : perft de référence (position initiale, Kiwipete, positions 3 à 6 de chessprogramming.org), SEE, triple répétition, règle des 50 coups, cohérence de la clé Zobrist. Pas de test de la recherche ni de l'évaluation : la recherche n'est pas reproductible, seul le perft sert de référence. Les tests ne s'exécutent jamais en parallèle (état statique du moteur).
+- Les commandes console `perft`, `bench`, `testsee`, `triple`, `50coups`, `eval`, `d` (dossier `Diagnostics\`) restent pour les essais à la main ; leurs vérifications sont reprises dans `Tests\`.
+- Le moteur cherche les réseaux `.nnue` dans le dossier courant : lancer l'exe depuis son dossier.
