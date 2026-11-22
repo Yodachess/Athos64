@@ -55,7 +55,7 @@ The goal is to keep Athos64's own search while using NNUE for position evaluatio
 
 ## NNUE Networks
 
-The repository currently contains the NNUE networks used by the engine:
+The engine uses the following NNUE networks (Stockfish 18). They are not stored in the repository (the big one exceeds GitHub's 100 MB limit): copy them next to the executable.
 
 ```text
 nn-37f18f62d772.nnue
@@ -143,19 +143,20 @@ Athos64/
 ├── fou.cs
 ├── GestionTemps.cs
 ├── GestionUCI.cs
-├── performance.cs
 ├── pion.cs
 ├── program.cs
-├── Projet_BrunoMoteurUCI.cs
 ├── recherche.cs
 ├── reine.cs
 ├── roi.cs
 ├── tabletransposition.cs
 ├── tour.cs
 │
+├── Diagnostics/        (performance.cs, tests en console)
+├── Tests/              (xUnit tests)
+│
 ├── BrunoNNUE.dll
-├── nn-b1a57edbea57.nnue
-├── nn-baff1ede1f90.nnue
+├── nn-c288c895ea92.nnue   (non versionné)
+├── nn-37f18f62d772.nnue
 │
 ├── Athos64.csproj
 ├── Athos64.sln
@@ -182,7 +183,7 @@ Athos64/
 | `echangeStatiqueEval.cs` | Static Exchange Evaluation             |
 | `BrunoNNUE.cs`           | C# interface to `BrunoNNUE.dll`        |
 | `chargementFen.cs`       | FEN position loading                   |
-| `performance.cs`         | Performance and benchmarking utilities |
+| `Diagnostics/performance.cs` | Performance and benchmarking utilities |
 
 ---
 
@@ -510,7 +511,7 @@ L'objectif est de conserver la recherche propre à Athos64 tout en utilisant NNU
 
 ## Réseaux NNUE
 
-Le dépôt contient actuellement les réseaux NNUE utilisés par le moteur :
+Le moteur utilise les réseaux NNUE suivants (Stockfish 18). Ils ne sont pas dans le dépôt (le grand dépasse la limite de 100 Mo de GitHub) : les copier à côté de l'exécutable.
 
 ```text
 nn-37f18f62d772.nnue
@@ -598,19 +599,20 @@ Athos64/
 ├── fou.cs
 ├── GestionTemps.cs
 ├── GestionUCI.cs
-├── performance.cs
 ├── pion.cs
 ├── program.cs
-├── Projet_BrunoMoteurUCI.cs
 ├── recherche.cs
 ├── reine.cs
 ├── roi.cs
 ├── tabletransposition.cs
 ├── tour.cs
 │
+├── Diagnostics/        (performance.cs, tests en console)
+├── Tests/              (tests xUnit)
+│
 ├── BrunoNNUE.dll
-├── nn-b1a57edbea57.nnue
-├── nn-baff1ede1f90.nnue
+├── nn-c288c895ea92.nnue   (non versionné)
+├── nn-37f18f62d772.nnue
 │
 ├── Athos64.csproj
 ├── Athos64.sln
@@ -637,7 +639,7 @@ Athos64/
 | `echangeStatiqueEval.cs` | Static Exchange Evaluation            |
 | `BrunoNNUE.cs`           | Interface C# avec `BrunoNNUE.dll`     |
 | `chargementFen.cs`       | Chargement des positions FEN          |
-| `performance.cs`         | Outils de mesure et de performance    |
+| `Diagnostics/performance.cs` | Outils de mesure et de performance |
 
 ---
 
