@@ -1,6 +1,6 @@
 # Athos64
 
-**Athos64** is a **UCI-compatible chess engine** developed in **C# / .NET 8**, using a bitboard-based board representation.
+**Athos64** is a **UCI-compatible chess engine** developed in **C# / .NET 10**, using a bitboard-based board representation.
 
 The engine currently includes **Negamax Alpha-Beta search**, a transposition table, several search heuristics, 
 and **NNUE evaluation** through a native C++ library specifically developed for the project: **BrunoNNUE.dll**.
@@ -190,8 +190,8 @@ Athos64/
 ### Requirements
 
 * Windows 10 or later
-* Visual Studio 2022
-* .NET 8 SDK
+* Visual Studio 2026
+* .NET 10 SDK
 * **x64** configuration
 * A compatible `BrunoNNUE.dll`
 
@@ -217,7 +217,7 @@ and build the solution.
 The output is generated in a directory similar to:
 
 ```text
-bin\x64\Release\net8.0\
+bin\x64\Release\net10.0\
 ```
 
 ---
@@ -326,7 +326,7 @@ The current architecture can be summarized as follows:
                                ▼
                     ┌─────────────────────┐
                     │       Athos64       │
-                    │       C# / .NET 8    │
+                    │       C# / .NET 10    │
                     ├─────────────────────┤
                     │ UCI Management      │
                     │ Time Management     │
@@ -454,7 +454,7 @@ VERSION FRANCAISE
 
 # Athos64
 
-**Athos64** est un **moteur d'échecs compatible UCI**, développé en **C# / .NET 8**, utilisant une représentation de l'échiquier basée sur les bitboards.
+**Athos64** est un **moteur d'échecs compatible UCI**, développé en **C# / .NET 10**, utilisant une représentation de l'échiquier basée sur les bitboards.
 
 Le moteur intègre actuellement une recherche **Negamax avec élagage Alpha-Beta**, une table de transposition, plusieurs heuristiques de recherche 
 ainsi qu'une **évaluation NNUE** via une bibliothèque native C++ développée spécifiquement pour le projet : **BrunoNNUE.dll**.
@@ -644,8 +644,8 @@ Athos64/
 ### Prérequis
 
 * Windows 10 ou supérieur
-* Visual Studio 2022
-* .NET 8 SDK
+* Visual Studio 2026
+* .NET 10 SDK
 * Configuration **x64**
 * Une version compatible de `BrunoNNUE.dll`
 
@@ -671,7 +671,7 @@ et compiler la solution.
 Le résultat est généré dans un répertoire similaire à :
 
 ```text
-bin\x64\Release\net8.0\
+bin\x64\Release\net10.0\
 ```
 
 ---
@@ -780,7 +780,7 @@ L'architecture actuelle peut être résumée ainsi :
                                ▼
                     ┌─────────────────────┐
                     │       Athos64       │
-                    │       C# / .NET 8    │
+                    │       C# / .NET 10    │
                     ├─────────────────────┤
                     │ Gestion UCI          │
                     │ Gestion du temps     │
