@@ -15,6 +15,7 @@
 // └─ "DoitArreter" vérifie si la recherche doit s'arrêter
 
 using System;
+using System.Diagnostics;
 using System.Numerics;
 using Athos64;
 
@@ -28,6 +29,12 @@ namespace Athos64
         public bool EstInfini { get; private set; }
         public bool DemandeArret { get; set; } = false;
 
+        // Horloge monotone en millisecondes (Stopwatch : précise, insensible aux changements d'heure système)
+        private static long Maintenant()
+        {
+            return Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
+        }
+
         public void DemanderArret()
         {
             DemandeArret = true; // Signal envoyé au thread de recherche
@@ -40,7 +47,7 @@ namespace Athos64
         public void Demarrer(int ms)
         {
             _tempsAlloueInitial = ms;
-            LimiteFin = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ms;
+            LimiteFin = Maintenant() + ms;
             EstInfini = false;
         }
         public void DemarrerInfini()
@@ -59,7 +66,7 @@ namespace Athos64
             {   // Rebascule en recherche normale limitée par le temps
                 EstInfini = false;
                 // On applique le temps de calcul à partir de maintenant (moment du ponderhit)
-                LimiteFin = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _tempsAlloueInitial;
+                LimiteFin = Maintenant() + _tempsAlloueInitial;
             }
         }
         public void ForcerArret()
@@ -68,7 +75,7 @@ namespace Athos64
         }
         public bool DoitArreter()
         {   // 1. Si on est en mode infini, on ignore la limite de temps
-            if (!EstInfini && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() >= LimiteFin)
+            if (!EstInfini && Maintenant() >= LimiteFin)
                 throw new ArretRechercheException();
             // 2. Soit on a reçu une commande "stop" (le drapeau)
             if (DemandeArret)

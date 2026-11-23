@@ -468,8 +468,9 @@ namespace Athos64
             
             ctx ??= new ContexteRecherche();    // Si aucun contexte n'est fourni, on en crée un
             ctx.NombreDeNoeuds++;
-            // 2. Vérification périodique de l'arrêt (tous les 2048 nœuds)
-            if ((ctx.NombreDeNoeuds & 2047) == 0)
+            // 2. Vérification périodique de l'arrêt (tous les 64 nœuds : l'évaluation NNUE est lente,
+            //    2048 nœuds pouvaient durer plus de 100 ms)
+            if ((ctx.NombreDeNoeuds & 63) == 0)
             {   // L'opérateur ?. renvoie null si GestionTempsEnCours est null.
                 if (GestionTempsEnCours?.DemandeArret == true)
                 {
@@ -512,8 +513,8 @@ namespace Athos64
             }
 
             // --- VÉRIFICATION DE SÉCURITÉ TEMPORELLE (pour go movetime xxx) ---
-            if ((ctx.NombreDeNoeuds & 2047) == 0)
-            {   // On vérifie le temps tous les 2048 nœuds pour ne pas impacter la performance
+            if ((ctx.NombreDeNoeuds & 63) == 0)
+            {   // On vérifie le temps tous les 64 nœuds (la lecture de l'horloge coûte très peu)
                 if (Recherche.GestionTempsEnCours != null)
                 {   // Interrompt l'exécution en levant ArretRechercheException si le temps est écoulé
                     // ou si gestionTemps.DemandeArret est passé à true
@@ -896,12 +897,9 @@ namespace Athos64
         {
             ctx.NombreDeNoeuds++;
             ctx.NoeudsQuiescence++; // On compte l'entrée en Quiescence
-            if ((ctx.NombreDeNoeuds & 2047) == 0)
-            {   // L'opérateur ?. renvoie null si GestionTempsEnCours est null.
-                if (GestionTempsEnCours?.DemandeArret == true)
-                {
-                    throw new ArretRechercheException();
-                }
+            if ((ctx.NombreDeNoeuds & 63) == 0)
+            {   // La quiescence vérifie aussi le temps (elle ne le faisait pas : arrêt "stop" seulement)
+                GestionTempsEnCours?.DoitArreter();
             }
 
             if (e.RegleDes50Coups >= 100) return 0;     // Règle des 50 coups : match nul immédiat
