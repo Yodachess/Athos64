@@ -37,6 +37,7 @@ namespace Athos64
     {   // Contexte de recherche pour stocker les informations spécifiques à chaque recherche
         public long NombreDeNoeuds { get; set; } = 0;
         public long NoeudsQuiescence { get; set; } = 0;
+        public IntPtr Nnue { get; set; } = IntPtr.Zero;     // Contexte NNUE natif (évaluation incrémentale) de ce thread ; IntPtr.Zero = aucun
         public int ProfondeurMaxAtteinte { get; set; } = 0;
 
         // Rendre les stats TT locales au contexte
@@ -165,6 +166,12 @@ namespace Athos64
             // --- INITIALISATION DU CONTEXTE PRINCIPAL ---
             var ctxPrincipal = new ContexteRecherche();
             DernierContexte = ctxPrincipal; // Permet à GestionUCI de lire les statistiques
+            ctxPrincipal.Nnue = BrunoNNUE.CreerContexte();
+            if (!BrunoNNUE.DefinirPosition(ctxPrincipal.Nnue, echiquier))
+            {   // Pas de contexte utilisable : évaluation complète à chaque nœud
+                BrunoNNUE.DetruireContexte(ctxPrincipal.Nnue);
+                ctxPrincipal.Nnue = IntPtr.Zero;
+            }
 
             // --- INITIALISATION DE LA FILE DE TRAVAIL PARTAGÉE ---
             // On remplit la file avec les profondeurs à traiter pour les threads aides (ex: de p=2 jusqu'à profondeurMax + 2)
@@ -188,6 +195,12 @@ namespace Athos64
                     var ctxAide = new ContexteRecherche();
                     contextesAides.Add(ctxAide);
                     var echiquierAide = echiquier.Cloner();
+                    ctxAide.Nnue = BrunoNNUE.CreerContexte();
+                    if (!BrunoNNUE.DefinirPosition(ctxAide.Nnue, echiquierAide))
+                    {
+                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
+                        ctxAide.Nnue = IntPtr.Zero;
+                    }
 
                     try
                     {
@@ -203,6 +216,11 @@ namespace Athos64
                     catch (ArretRechercheException) { /* Arrêt propre */ }
                     catch (Exception)
                     {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale
+                    }
+                    finally
+                    {
+                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
+                        ctxAide.Nnue = IntPtr.Zero;
                     }
                 });
             }       
@@ -454,6 +472,9 @@ namespace Athos64
                 }
                 // 2. Attend IMPÉRATIVEMENT que tous les threads aides soient arrêtés
                 Task.WaitAll(tachesAides);
+                // 3. Libère le contexte NNUE natif du thread principal
+                BrunoNNUE.DetruireContexte(ctxPrincipal.Nnue);
+                ctxPrincipal.Nnue = IntPtr.Zero;
             }
 
             if (meilleurMouvementGlobal.HasValue)
@@ -480,7 +501,7 @@ namespace Athos64
             // Garde-fou pour éviter tout dépassement de tableau en profondeur extrême
             if (distanceRacine >= 127)
             {
-                return BrunoNNUE.EvaluerNNUE(e);
+                return BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
             }
             int alphaOrigine = alpha;
             int betaOrigine = beta;
@@ -617,8 +638,10 @@ namespace Athos64
                 int enPassantSauvegarde = e.CaseEnPassant;
 
                 e.JouerCoupNul();
+                bool nnueNul = BrunoNNUE.JouerCoupNul(ctx.Nnue);
                 // Recherche réduite avec une fenêtre nulle (Null Window Search)
                 int scoreNull = -Negamax(e, profondeur - 1 - Réduction, distanceRacine + 1, -beta, -beta + 1, ctx);
+                if (nnueNul) BrunoNNUE.Annuler(ctx.Nnue);
                 e.AnnulerCoupNul(enPassantSauvegarde);
 
                 // Coupure Beta : si notre position reste trop forte même en passant notre tour
@@ -635,7 +658,7 @@ namespace Athos64
 
             // 8/8/2026
             // Évaluation statique de la position actuelle pour les élagages sélectifs
-            int evalStatique = BrunoNNUE.EvaluerNNUE(e);
+            int evalStatique = BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
              // 8/8/2026
 
             // ✅ Utilisation du Pool au lieu de l'allocation d'une nouvelle liste
@@ -702,6 +725,7 @@ namespace Athos64
                 }
                 // 8/8/2026
 
+                bool nnueJoue = BrunoNNUE.JouerCoup(ctx.Nnue, mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
                 var etatPrecedent = e.JouerCoup(mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
 
                 // FIX : Une fois le coup joué, le trait a changé. 
@@ -804,6 +828,7 @@ namespace Athos64
                 }
                 // ======================================================================
  
+                if (nnueJoue) BrunoNNUE.Annuler(ctx.Nnue);
                 e.AnnulerCoup(etatPrecedent);
 
                 if (score > meilleurScoreLocal)
@@ -914,7 +939,7 @@ namespace Athos64
             // Si on est en échec, on continue pour ne pas évaluer une position instable (ou rater un mat).
             if (!enEchec && distanceRacine > ProtocoleUCI.ProfondeurDeRecherche + 10)
             {
-                return BrunoNNUE.EvaluerNNUE(e);
+                return BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
             }
 
             // --- Optimisation TT en Quiescence ---
@@ -955,7 +980,7 @@ namespace Athos64
 
             // --- 1. Standing Pat (Évaluation statique) ---
             // On considère que le joueur peut choisir de ne pas capturer s'il est satisfait.
-            int scoreStatique = BrunoNNUE.EvaluerNNUE(e);
+            int scoreStatique = BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
 
             // Si on est en échec, le score statique n'est pas fiable (on ne peut pas "rester tranquille" en étant menceau)
             if (!enEchec)
@@ -1051,11 +1076,13 @@ namespace Athos64
                     }
 
                     // --- 5. Simulation du coup ---
+                    bool nnueJoue = BrunoNNUE.JouerCoup(ctx.Nnue, m.CaseDepart, m.CaseArrivee, m.Promotion);
                     var etatPrecedent = e.JouerCoup(m.CaseDepart, m.CaseArrivee, m.Promotion);
 
                     coupsJouesLegaux++;
 
                     int score = -RechercheQuiescence(ctx, e, -beta, -alpha, distanceRacine + 1);
+                    if (nnueJoue) BrunoNNUE.Annuler(ctx.Nnue);
                     e.AnnulerCoup(etatPrecedent);
 
                     if (score >= beta)

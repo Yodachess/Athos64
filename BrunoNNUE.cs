@@ -8,13 +8,18 @@
 // Classe faisant le pont pour manipuler les réseaux de neurones
 // ├─ Constructeur statique "NNUE" pour initialiser la DLL
 // ├─ "Initialiser" initialise le réseau de neurones à partir du fichier fourni
-// ├─ "EvaluerEchiquier" retourne l'évaluation à partir de l'échiquier fourni en entrée
-// └─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
+// ├─ "EvaluerEchiquier" retourne l'évaluation complète à partir de l'échiquier fourni en entrée
+// ├─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
+// └─ Évaluation incrémentale (un contexte natif par thread de recherche) :
+//    ├─ "CreerContexte" / "DetruireContexte" / "DefinirPosition" : cycle de vie et position de départ
+//    ├─ "JouerCoup" / "JouerCoupNul" / "Annuler" : rejouent les coups de la recherche dans le contexte
+//    └─ "EvaluerNNUE(e, contexte)" : met à jour l'accumulateur depuis la position parente (repli : évaluation complète)
 
 using System;
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Athos64
 {   
@@ -98,6 +103,112 @@ namespace Athos64
             return BrunoNNUE.ConvertirEnCpStockfish(valeurNNUE, e);
         }
 
+
+        // ===========================================================================================
+        // Évaluation incrémentale : un contexte natif (position + accumulateurs) par thread de recherche.
+        // La recherche y rejoue ses coups (JouerCoup / JouerCoupNul / Annuler) : l'accumulateur est alors
+        // mis à jour à partir de celui de la position parente, au lieu d'être recalculé à chaque évaluation.
+        // ===========================================================================================
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NNUE_CtxCreate();
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void NNUE_CtxDestroy(IntPtr ctx);
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NNUE_CtxSet(IntPtr ctx, int[] pieceBoard, int side, int rule50);
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NNUE_CtxDo(IntPtr ctx, int from, int to, int promo);
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NNUE_CtxDoNull(IntPtr ctx);
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void NNUE_CtxUndo(IntPtr ctx);
+
+        [DllImport(NOM_DLL, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NNUE_CtxEval(IntPtr ctx, int side, ulong occupation, int optimism, out int valeur);
+
+        // Nombre d'évaluations où le contexte ne correspondait pas à l'échiquier (évaluées alors sans lui) : doit rester à 0
+        private static long _desaccords = 0;
+        public static long Desaccords => Interlocked.Read(ref _desaccords);
+
+        public static IntPtr CreerContexte()
+        {   // Retourne IntPtr.Zero si le réseau n'est pas disponible : la recherche évalue alors sans contexte
+            if (!_nnueInitialise && !Initialiser(ProtocoleUCI.NetworkFile))
+                return IntPtr.Zero;
+            if (!_nnueDisponible)
+                return IntPtr.Zero;
+            try { return NNUE_CtxCreate(); }
+            catch (Exception) { return IntPtr.Zero; }
+        }
+
+        public static void DetruireContexte(IntPtr contexte)
+        {
+            if (contexte != IntPtr.Zero)
+                NNUE_CtxDestroy(contexte);
+        }
+
+        public static bool DefinirPosition(IntPtr contexte, Echiquier e)
+        {   // Place le contexte sur la position de l'échiquier (racine de la recherche)
+            if (contexte == IntPtr.Zero)
+                return false;
+            return NNUE_CtxSet(contexte, ConstruirePieceBoard(e), e.CoteBlanc ? 0 : 1, e.RegleDes50Coups) != 0;
+        }
+
+        public static bool JouerCoup(IntPtr contexte, int caseDepart, int caseArrivee, char? promotion)
+        {   // À appeler juste avant e.JouerCoup ; retourne false si le contexte ne l'a pas joué (alors pas d'Annuler)
+            if (contexte == IntPtr.Zero)
+                return false;
+            int promo = promotion switch { 'n' => 2, 'b' => 3, 'r' => 4, 'q' => 5, _ => 0 };
+            return NNUE_CtxDo(contexte, caseDepart, caseArrivee, promo) != 0;
+        }
+
+        public static bool JouerCoupNul(IntPtr contexte)
+        {
+            return contexte != IntPtr.Zero && NNUE_CtxDoNull(contexte) != 0;
+        }
+
+        public static void Annuler(IntPtr contexte)
+        {
+            NNUE_CtxUndo(contexte);
+        }
+
+        public static int EvaluerNNUE(Echiquier e, IntPtr contexte)
+        {   // Évaluation incrémentale si possible, sinon évaluation complète (même résultat)
+            if (contexte != IntPtr.Zero)
+            {
+                int optimism = e.CoteBlanc ? Recherche.OptimismBlanc : Recherche.OptimismNoir;
+                if (NNUE_CtxEval(contexte, e.CoteBlanc ? 0 : 1, e.ObtenirToutesLesPieces(), optimism, out int valeur) != 0)
+                    return ConvertirEnCpStockfish(valeur, e);
+                Interlocked.Increment(ref _desaccords);
+            }
+            return EvaluerNNUE(e);
+        }
+
+        private static int[] ConstruirePieceBoard(Echiquier echiquier)
+        {   // Convertir l'échiquier en tableau de pièces pour le NNUE de Stockfish
+            int[] pieceBoard = new int[64];
+
+            // Blancs
+            RemplirPieceBoard(pieceBoard, echiquier.PionsBlancs, 1);      // W_PAWN
+            RemplirPieceBoard(pieceBoard, echiquier.CavaliersBlancs, 2);  // W_KNIGHT
+            RemplirPieceBoard(pieceBoard, echiquier.FousBlancs, 3);       // W_BISHOP
+            RemplirPieceBoard(pieceBoard, echiquier.ToursBlanches, 4);   // W_ROOK
+            RemplirPieceBoard(pieceBoard, echiquier.ReineBlanche, 5);    // W_QUEEN
+            RemplirPieceBoard(pieceBoard, echiquier.RoiBlanc, 6);        // W_KING
+
+            // Noirs
+            RemplirPieceBoard(pieceBoard, echiquier.PionsNoirs, 9);      // B_PAWN
+            RemplirPieceBoard(pieceBoard, echiquier.CavaliersNoirs, 10); // B_KNIGHT
+            RemplirPieceBoard(pieceBoard, echiquier.FousNoirs, 11);      // B_BISHOP
+            RemplirPieceBoard(pieceBoard, echiquier.ToursNoires, 12);    // B_ROOK
+            RemplirPieceBoard(pieceBoard, echiquier.ReineNoire, 13);     // B_QUEEN
+            RemplirPieceBoard(pieceBoard, echiquier.RoiNoir, 14);        // B_KING
+
+            return pieceBoard;
+        }
 
         public static int EvaluerEchiquier(Echiquier echiquier)
         {   // Convertir l'échiquier en tableau de pièces pour le NNUE de Stockfish
