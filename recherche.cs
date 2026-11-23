@@ -190,11 +190,13 @@ namespace Athos64
             for (int t = 1; t < NombreThreads; t++)
             {
                 int threadId = t; // Capture de l'index pour le thread
+                // Copie faite ici, par le thread principal, avant son premier coup : si le thread d'aide démarrait tard
+                // (machine chargée), il copierait un échiquier que le thread principal est en train de modifier.
+                var echiquierAide = echiquier.Cloner();
                 tachesAides[t - 1] = Task.Run(() =>
                 {
                     var ctxAide = new ContexteRecherche();
                     contextesAides.Add(ctxAide);
-                    var echiquierAide = echiquier.Cloner();
                     ctxAide.Nnue = BrunoNNUE.CreerContexte();
                     if (!BrunoNNUE.DefinirPosition(ctxAide.Nnue, echiquierAide))
                     {
