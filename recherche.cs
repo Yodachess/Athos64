@@ -547,10 +547,8 @@ namespace Athos64
                 return beta;
             // ---------------------------------------------------
 
-            // 8/8/2026
             // Évaluation statique de la position actuelle pour les élagages sélectifs
             int evalStatique = BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
-             // 8/8/2026
 
             // ✅ Utilisation du Pool au lieu de l'allocation d'une nouvelle liste
             var listeMouvements = ctx.PoolListes[distanceRacine];
@@ -565,14 +563,7 @@ namespace Athos64
             // ========================================================================
             // --- 3. Calcul des scores de tri pour l'ordonnancement des mouvements ---    
             // ========================================================================
-            for (int i = 0; i < listeMouvements.Count; i++)
-            {
-                var m = listeMouvements[i];
-                // On passe 'coupTT' au lieu de 'entree' !
-                // Devient :
-                m.ScoreTri = CalculerScoreMouvement(ctx, m, e, coupTT, distanceRacine);
-                listeMouvements[i] = m;
-            }
+            CalculerScoresTri(ctx, e, listeMouvements, coupTT, distanceRacine);
 
             Mouvement meilleurMouvementLocal = default;
             int meilleurScoreLocal = -INFINI;
@@ -586,112 +577,11 @@ namespace Athos64
             {   // On amène le meilleur coup parmi ceux restants à l'index i
                 ChoisirMeilleurMouvement(listeMouvements, i);
                 var mouvement = listeMouvements[i];
-                /*
-                // --- MultiPV : on ignore les meilleurs coups déjà trouvés à la racine ---
-                if (distanceRacine == 0 && CoupsInterditsMultiPV.Contains(mouvement))
+                // Futility Pruning : on ignore un coup calme près des feuilles si la position est déjà trop mauvaise
+                if (ElagageFutilite(mouvement, i, profondeur, alpha, evalStatique, subitEchec))
                     continue;
-                */
-                // 8/8/2026
-                // =======================================================================
-                // --- Futility Pruning (FP) Sécurisé ---
-                // =======================================================================
-                bool estCoupCalme = !mouvement.PieceCapturee.HasValue && !mouvement.Promotion.HasValue;
 
-                // 1. Limité strictement aux feuilles proches (profondeur 1 et 2)
-                // 2. On n'élague jamais si le Roi est en échec ou si on est proche d'un score de mat
-                // 3. On réserve l'élagage aux coups calmes à partir du 2ᵉ coup (i > 0)
-                if (!subitEchec
-                    && estCoupCalme
-                    && profondeur <= 2
-                    && i > 0
-                    && Math.Abs(alpha) < 20000)
-                {
-                    // Marge de sécurité suffisante (~200 cp à d1, ~400 cp à d2)
-                    int margeFP = 200 * profondeur;
-
-                    if (evalStatique + margeFP <= alpha)
-                    {
-                        continue; // Élagage du coup calme
-                    }
-                }
-                // 8/8/2026
-
-                bool nnueJoue = BrunoNNUE.JouerCoup(ctx.Nnue, mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
-                var etatPrecedent = e.JouerCoup(mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
-
-                // FIX : Une fois le coup joué, le trait a changé. 
-                // On vérifie donc si le Roi du camp adverse (celui qui vient de jouer) met l'autre en échec.
-                bool donneEchec = e.RoiEnEchec(e.CoteBlanc);
-                // Extension sur échec
-                // ================================================================================================
-                // On n'autorise l'extension sur échec que si on n'a pas déjà trop creusé 
-                // par rapport à la profondeur demandée initialement (ex: distanceRacine < profondeur initiale * 2)
-                // int extension = (subitEchec && distanceRacine < ProtocoleUCI.ProfondeurDeRecherche * 2) ? 1 : 0;
-                int extension = (donneEchec && distanceRacine < ProtocoleUCI.ProfondeurDeRecherche * 2) ? 1 : 0;
-                // =================================================================================================
-                int score;
-                // Intégration de la LMR (Late Move Reduction) pour les coups moins prometteurs
-                // ===================================================================================================
-                // On ne réduit PAS si :
-                // 1. On est trop près des feuilles (profondeur < 3)    2. Le coup est le premier de la liste (i == 0)
-                // 3. C'est une capture ou une promotion                4. Le Roi est en échec ou le coup donne échec
-                // ===================================================================================================
-                /* 
-                CONDITION LMR : On ne réduit que les coups CALMES (pas de captures, promotions, échecs, ou roi en danger)
-                Au départ, mon LMR réduisait trop de coups, trop tôt et trop fortement.
-                Concrètement :      • il s'appliquait dès le 3ᵉ coup (i > 2) ; 
-                                    • à profondeur 8, il réduisait déjà de 3 demi-coups, ce qui est très agressif. 
-                Résultat : certaines variantes intéressantes étaient explorées de façon trop superficielle. 
-                À profondeur 8, le moteur passait à côté du meilleur coup et en choisissait même un mauvais.
-                J'ai donc rendu le LMR plus prudent :
-	                • il ne s'applique qu'à partir du 6ᵉ coup (i >= 6) ; 
-	                • la réduction est limitée à 1 ou 2 demi-coups à profondeur 8. 
-                Le moteur explore donc davantage les coups prometteurs, retrouve les bons coups... mais en contrepartie il visite plus de nœuds et devient plus lent. C'est le compromis classique du réglage du LMR.
-                 */
-                // Vérification si le coup est un Killer Move
-                bool estKiller = (distanceRacine < 64) &&
-                                 (mouvement.Equals(ctx.KillerMoves[distanceRacine, 0]) || mouvement.Equals(ctx.KillerMoves[distanceRacine, 1]));
-
-                if (profondeur >= 3
-                    && i >= 4       // Laisser les 4 premiers coups (0, 1, 2, 3) à pleine profondeur
-                    && !mouvement.PieceCapturee.HasValue
-                    && !mouvement.Promotion.HasValue
-                    && !subitEchec
-                    && !donneEchec
-                    && !estKiller
-                    && mouvement.Piece != Echiquier.TypePiece.Roi)
-                {
-                    // Récupération de la base de réduction
-                    int reduction = CalculerReductionLMR(ctx, mouvement, profondeur, i);
-
-                    // 1. Recherche réduite à fenêtre nulle
-                    score = -Negamax(e, profondeur - 1 - reduction, distanceRacine + 1, -alpha - 1, -alpha, ctx);
-
-                    // 2. Re-recherche complète si la réduction a échoué (le coup est meilleur que prévu)
-                    if (score > alpha)
-                    {
-                        score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
-                    }
-                }
-                else
-                {       // 3. Recherche normale classique (sans réduction)
-                    if (i == 0)
-                    {   // Premier coup : recherche normale pleine fenêtre
-                        score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
-                    }
-                    else
-                    {   // Coup suivant : recherche à fenêtre nulle
-                        score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -alpha - 1, -alpha, ctx);
-                        if (score > alpha && score < beta)
-                        {   // Si le coup semble meilleur, refaire une recherche complète
-                            score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
-                        }
-                    }
-                }
-                // ======================================================================
- 
-                if (nnueJoue) BrunoNNUE.Annuler(ctx.Nnue);
-                e.AnnulerCoup(etatPrecedent);
+                int score = JouerEtChercher(ctx, e, mouvement, i, profondeur, distanceRacine, alpha, beta, subitEchec);
 
                 if (score > meilleurScoreLocal)
                 {
@@ -723,6 +613,105 @@ namespace Athos64
             listeMouvements.Clear();
             return meilleurScoreLocal;
         }
+        // Score de tri de chaque coup (coup de la table de transposition, captures, tueurs, historique...)
+        private static void CalculerScoresTri(ContexteRecherche ctx, Echiquier e, List<Echiquier.Mouvement> listeMouvements,
+                                              Echiquier.Mouvement coupTT, int distanceRacine)
+        {
+            for (int i = 0; i < listeMouvements.Count; i++)
+            {
+                var m = listeMouvements[i];
+                m.ScoreTri = CalculerScoreMouvement(ctx, m, e, coupTT, distanceRacine);
+                listeMouvements[i] = m;
+            }
+        }
+
+        // Futility Pruning sécurisé : retourne true si le coup calme peut être ignoré
+        private static bool ElagageFutilite(Echiquier.Mouvement mouvement, int numeroCoup, int profondeur, int alpha,
+                                            int evalStatique, bool subitEchec)
+        {
+            bool estCoupCalme = !mouvement.PieceCapturee.HasValue && !mouvement.Promotion.HasValue;
+
+            // 1. Limité strictement aux feuilles proches (profondeur 1 et 2)
+            // 2. On n'élague jamais si le Roi est en échec ou si on est proche d'un score de mat
+            // 3. On réserve l'élagage aux coups calmes à partir du 2ᵉ coup
+            if (!subitEchec
+                && estCoupCalme
+                && profondeur <= 2
+                && numeroCoup > 0
+                && Math.Abs(alpha) < 20000)
+            {
+                // Marge de sécurité suffisante (~200 cp à d1, ~400 cp à d2)
+                int margeFP = 200 * profondeur;
+                return evalStatique + margeFP <= alpha;
+            }
+            return false;
+        }
+
+        // Joue le coup (échiquier et contexte NNUE), le cherche à la profondeur voulue, puis l'annule. Retourne son score.
+        // numeroCoup est sa position dans la liste triée : le premier est cherché en pleine fenêtre,
+        // les suivants en fenêtre nulle (avec réduction LMR pour les coups calmes tardifs).
+        private static int JouerEtChercher(ContexteRecherche ctx, Echiquier e, Echiquier.Mouvement mouvement, int numeroCoup,
+                                           int profondeur, int distanceRacine, int alpha, int beta, bool subitEchec)
+        {
+            bool nnueJoue = BrunoNNUE.JouerCoup(ctx.Nnue, mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
+            var etatPrecedent = e.JouerCoup(mouvement.CaseDepart, mouvement.CaseArrivee, mouvement.Promotion);
+
+            // Une fois le coup joué, le trait a changé : on vérifie si le Roi du camp adverse
+            // (celui qui vient de jouer) met l'autre en échec.
+            bool donneEchec = e.RoiEnEchec(e.CoteBlanc);
+
+            // Extension sur échec, sauf si on a déjà trop creusé par rapport à la profondeur demandée
+            int extension = (donneEchec && distanceRacine < ProtocoleUCI.ProfondeurDeRecherche * 2) ? 1 : 0;
+            int score;
+
+            // LMR (Late Move Reduction) : on ne réduit que les coups CALMES, tardifs (à partir du 5ᵉ), à partir de la profondeur 3.
+            // Jamais une capture, une promotion, un coup tueur, un coup du Roi, ni si le Roi est en échec ou si le coup donne échec.
+            // Un LMR trop agressif (dès le 3ᵉ coup, -3 demi-coups à profondeur 8) faisait rater de bons coups ; il est volontairement
+            // prudent : plus de nœuds visités, mais de meilleurs coups retrouvés.
+            bool estKiller = (distanceRacine < 64) &&
+                             (mouvement.Equals(ctx.KillerMoves[distanceRacine, 0]) || mouvement.Equals(ctx.KillerMoves[distanceRacine, 1]));
+
+            if (profondeur >= 3
+                && numeroCoup >= 4       // Laisser les 4 premiers coups (0, 1, 2, 3) à pleine profondeur
+                && !mouvement.PieceCapturee.HasValue
+                && !mouvement.Promotion.HasValue
+                && !subitEchec
+                && !donneEchec
+                && !estKiller
+                && mouvement.Piece != Echiquier.TypePiece.Roi)
+            {
+                int reduction = CalculerReductionLMR(ctx, mouvement, profondeur, numeroCoup);
+
+                // 1. Recherche réduite à fenêtre nulle
+                score = -Negamax(e, profondeur - 1 - reduction, distanceRacine + 1, -alpha - 1, -alpha, ctx);
+
+                // 2. Re-recherche complète si la réduction a échoué (le coup est meilleur que prévu)
+                if (score > alpha)
+                {
+                    score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
+                }
+            }
+            else
+            {       // Recherche normale classique (sans réduction)
+                if (numeroCoup == 0)
+                {   // Premier coup : recherche normale pleine fenêtre
+                    score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
+                }
+                else
+                {   // Coup suivant : recherche à fenêtre nulle
+                    score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -alpha - 1, -alpha, ctx);
+                    if (score > alpha && score < beta)
+                    {   // Si le coup semble meilleur, refaire une recherche complète
+                        score = -Negamax(e, profondeur - 1 + extension, distanceRacine + 1, -beta, -alpha, ctx);
+                    }
+                }
+            }
+
+            if (nnueJoue) BrunoNNUE.Annuler(ctx.Nnue);
+            e.AnnulerCoup(etatPrecedent);
+            return score;
+        }
+
         // Tous les 64 nœuds, lève ArretRechercheException si l'arrêt a été demandé
         private static void VerifierArretDemande(ContexteRecherche ctx)
         {
