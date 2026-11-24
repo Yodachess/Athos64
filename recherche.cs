@@ -491,15 +491,9 @@ namespace Athos64
             
             ctx ??= new ContexteRecherche();    // Si aucun contexte n'est fourni, on en crée un
             ctx.NombreDeNoeuds++;
-            // 2. Vérification périodique de l'arrêt (tous les 64 nœuds : l'évaluation NNUE est lente,
-            //    2048 nœuds pouvaient durer plus de 100 ms)
-            if ((ctx.NombreDeNoeuds & 63) == 0)
-            {   // L'opérateur ?. renvoie null si GestionTempsEnCours est null.
-                if (GestionTempsEnCours?.DemandeArret == true)
-                {
-                    throw new ArretRechercheException();
-                }
-            }            
+            // Vérification périodique de l'arrêt demandé (tous les 64 nœuds : l'évaluation NNUE est lente,
+            // 2048 nœuds pouvaient durer plus de 100 ms)
+            VerifierArretDemande(ctx);
             // Garde-fou pour éviter tout dépassement de tableau en profondeur extrême
             if (distanceRacine >= 127)
             {
@@ -513,109 +507,18 @@ namespace Athos64
             // --- Détection de la triple répétition et de la règle des 50 coups ----
             // ======================================================================
 
-            // 1. Détection de la règle des 50 coups
-            if (e.RegleDes50Coups >= 100)
-            {   // Match nul immédiat
-                return 0; 
-            }
+            // Règle des 50 coups et triple répétition
+            if (PartieNulle(e, distanceRacine))
+                return 0;
 
-            // 2. Détection de la triple répétition
-            if (distanceRacine > 0)
-            {
-                ulong cleActuelle = e.CleActuelle;
-                // On s'arrête au dernier coup irréversible grâce à votre variable RegleDes50Coups
-                int limiteArriere = Math.Max(0, e.DemiCoupActuel - e.RegleDes50Coups);
-                // On remonte l'historique de 2 en 2 (même joueur)
-                for (int i = e.DemiCoupActuel - 2; i >= limiteArriere; i -= 2)
-                {
-                    if (e.HistoriqueCles[i] == cleActuelle)
-                    {   // Provocateur de répétition = Match nul (0)
-                        return 0; 
-                    }
-                }
-            }
-
-            // --- VÉRIFICATION DE SÉCURITÉ TEMPORELLE (pour go movetime xxx) ---
-            if ((ctx.NombreDeNoeuds & 63) == 0)
-            {   // On vérifie le temps tous les 64 nœuds (la lecture de l'horloge coûte très peu)
-                if (Recherche.GestionTempsEnCours != null)
-                {   // Interrompt l'exécution en levant ArretRechercheException si le temps est écoulé
-                    // ou si gestionTemps.DemandeArret est passé à true
-                    Recherche.GestionTempsEnCours.DoitArreter();
-                }
-            }
+            // Sécurité temporelle (pour go movetime xxx) : lève ArretRechercheException si le temps est écoulé
+            VerifierTemps(ctx);
 
             // ====================================================
             // --- 1. Consultation de la table de transposition ---
             // ====================================================
-            Echiquier.Mouvement coupTT = default; // Notre variable locale pour le tri
-            EntreeTT? entree = TT.Recuperer(e.CleActuelle);
-
-            if (entree.HasValue)
-            {   // On a une entrée dans la table de transposition pour la position actuelle,
-                // mais est-elle exploitable à ce stade de la recherche ?
-                ctx.InterrogationsTT++;
-
-                // --- SÉCURITÉ RECRUTEMENT DU COUP TT ---
-                if (entree.Value.Profondeur > 0 && entree.Value.CaseDepartMeilleur != entree.Value.CaseArriveeMeilleur)
-                {   // Profondeur > 0 (strict) pour interdire les coups de Quiescence (-1 ou 0)
-                    coupTT = new Echiquier.Mouvement(
-                        entree.Value.CaseDepartMeilleur,
-                        entree.Value.CaseArriveeMeilleur,
-                        Echiquier.TypePiece.Pion,
-                        null,
-                        entree.Value.PromotionMeilleur
-                    );
-                }
-
-                // Récupération et ajustement du score pour les transpositions de Mat
-                int scoreTT = FiltrerScoreTT_Sortie(entree.Value.Score, distanceRacine);
-
-                // --- GESTION SÉCURISÉE DES COUPURES ET BORNES TT ---
-                if (entree.Value.Profondeur >= profondeur)
-                {
-                    if (entree.Value.Type == TypeBorne.Exact)
-                    {   // 1. Cas d'une valeur exacte : coupure immédiate
-                        ctx.UtilisationsCoupTT++;
-                        ctx.CoupuresTT++;
-                        // DEBUG
-                        if (distanceRacine == 0 && coupTT.CaseDepart != coupTT.CaseArrivee)
-                        {
-                            ctx.TablePV[0, 0] = coupTT;
-                            ctx.LongueurPV[0] = 1;
-                            // MeilleurMouvementTrouve = coupTT;
-                        }
-                        // DEBUG
-                        return scoreTT;
-                    }
-                    else if (entree.Value.Type == TypeBorne.BorneInferieure)
-                    {   // 2. Cas d'une Borne Inférieure (Score minimum connu)
-                        if (scoreTT >= beta)
-                        {   // Si le pire score possible ici est déjà supérieur ou égal à beta, coupure beta directe !
-                            ctx.UtilisationsCoupTT++;
-                            ctx.CoupuresTT++;
-                            return scoreTT;
-                        }
-                        alpha = Math.Max(alpha, scoreTT);
-                    }
-                    else if (entree.Value.Type == TypeBorne.BorneSuperieure)
-                    {   // 3. Cas d'une Borne Supérieure (Score maximum connu)
-                        if (scoreTT <= alpha)
-                        {   // Si le meilleur score espérable ici est déjà inférieur ou égal à alpha, coupure alpha directe !
-                            ctx.UtilisationsCoupTT++;
-                            ctx.CoupuresTT++;
-                            return scoreTT;
-                        }
-                        beta = Math.Min(beta, scoreTT);
-                    }
-                    if (alpha >= beta)
-                    {   // 4. Sécurité d'effondrement de la fenêtre Alpha-Beta
-                        ctx.UtilisationsCoupTT++;
-                        ctx.CoupuresTT++;
-                        return alpha;
-                    }
-                }
-            }
+            if (SonderTable(ctx, e, profondeur, distanceRacine, ref alpha, ref beta, out Echiquier.Mouvement coupTT, out int scoreTT))
+                return scoreTT;
 
             if (profondeur <= 0) return RechercheQuiescence(ctx, e, alpha, beta, distanceRacine);
 
@@ -623,39 +526,8 @@ namespace Athos64
             // ---  2. Null Move Pruning (Élagage par le coup nul) ---
             // =======================================================
 
-            int Réduction = 2 + profondeur / 4;
-            Réduction = Math.Min(Réduction, 4);
-
-            // SÉCURITÉ ZUGZWANG : On vérifie que le camp actif possède des pièces (mineures ou majeures) en plus de son Roi et ses pions.
-            // Si un camp n'a plus que des pions, on désactive le Null Move pour éviter de rater un Zugzwang.
-            ulong piecesDuCamp = e.CoteBlanc
-                ? (e.ReineBlanche | e.ToursBlanches | e.FousBlancs | e.CavaliersBlancs)
-                : (e.ReineNoire | e.ToursNoires | e.FousNoirs | e.CavaliersNoirs);
-
-            // On extrait l'état d'échec du camp qui doit VRAIMENT jouer
-            bool roiActifEnEchec = e.RoiEnEchec(e.CoteBlanc);
-
-            if (profondeur >= 3 && !roiActifEnEchec && piecesDuCamp != 0UL)
-            {   // On sauvegarde la case en-passant actuelle avant de l'annuler
-                int enPassantSauvegarde = e.CaseEnPassant;
-
-                e.JouerCoupNul();
-                bool nnueNul = BrunoNNUE.JouerCoupNul(ctx.Nnue);
-                // Recherche réduite avec une fenêtre nulle (Null Window Search)
-                int scoreNull = -Negamax(e, profondeur - 1 - Réduction, distanceRacine + 1, -beta, -beta + 1, ctx);
-                if (nnueNul) BrunoNNUE.Annuler(ctx.Nnue);
-                e.AnnulerCoupNul(enPassantSauvegarde);
-
-                // Coupure Beta : si notre position reste trop forte même en passant notre tour
-                if (scoreNull >= beta)
-                {   // Si le score indique un mat (très proche de l'infini), 
-                    // on préfère ne pas élaguer aveuglément pour éviter les faux positifs.
-                    if (scoreNull < INFINI - 10000)
-                    {
-                        return beta;
-                    }
-                }
-            }
+            if (CoupNulDonneCoupure(ctx, e, profondeur, distanceRacine, beta))
+                return beta;
             // ---------------------------------------------------
 
             // 8/8/2026
@@ -793,16 +665,7 @@ namespace Athos64
                     && mouvement.Piece != Echiquier.TypePiece.Roi)
                 {
                     // Récupération de la base de réduction
-                    int dIdx = Math.Min(profondeur, 63);
-                    int mIdx = Math.Min(i, 63);
-                    int reduction = TableLMR[dIdx, mIdx];
-
-                    // Ajustement dynamique selon l'historique : si le coup a un bon score historique, on réduit moins
-                    int scoreHist = ctx.TableHistorique[mouvement.CaseDepart, mouvement.CaseArrivee];
-                    if (scoreHist > 10000) reduction--;
-
-                    // Sécurité pour garder au moins 1 pli de profondeur
-                    reduction = Math.Clamp(reduction, 1, profondeur - 1);
+                    int reduction = CalculerReductionLMR(ctx, mouvement, profondeur, i);
 
                     // 1. Recherche réduite à fenêtre nulle
                     score = -Negamax(e, profondeur - 1 - reduction, distanceRacine + 1, -alpha - 1, -alpha, ctx);
@@ -843,52 +706,14 @@ namespace Athos64
                     alpha = score;
                     // if (distanceRacine == 0) MeilleurMouvementTrouve = mouvement;
 
-                    // Mise à jour de la ligne PV locale pour ce pli (distanceRacine)
-                    // ======================================================================
                     if (distanceRacine < 127)
-                    {   // 1. Le premier coup de la ligne à ce pli est le mouvement qu'on vient de jouer
-                        ctx.TablePV[distanceRacine, distanceRacine] = mouvement;
-
-                        int limiteSuivante = Math.Min(ctx.LongueurPV[distanceRacine + 1], 127);
-                        // 2. On recopie tous les coups de la PV du pli suivant (distanceRacine + 1) 
-                        //    pour les coller à la suite dans la PV du pli actuel.
-                        for (int suivant = distanceRacine + 1; suivant < limiteSuivante; suivant++)
-                        {
-                            ctx.TablePV[distanceRacine, suivant] = ctx.TablePV[distanceRacine + 1, suivant];
-                        }
-                        // 3. La longueur de la PV à ce pli devient la longueur de la PV du pli suivant
-                        ctx.LongueurPV[distanceRacine] = limiteSuivante;
-                    }                    /*
-                    // 1. Le premier coup de la ligne à ce pli est le mouvement qu'on vient de jouer
-                    ctx.TablePV[distanceRacine, distanceRacine] = mouvement;
-
-                    // 2. On recopie tous les coups de la PV du pli suivant (distanceRacine + 1) 
-                    //    pour les coller à la suite dans la PV du pli actuel.
-                    for (int suivant = distanceRacine + 1; suivant < ctx.LongueurPV[distanceRacine + 1]; suivant++)
-                    {
-                        ctx.TablePV[distanceRacine, suivant] = ctx.TablePV[distanceRacine + 1, suivant];
-                    }
-
-                    // 3. La longueur de la PV à ce pli devient la longueur de la PV du pli suivant
-                    ctx.LongueurPV[distanceRacine] = ctx.LongueurPV[distanceRacine + 1] + 1;
-                    */
-                    // ======================================================================
+                        MettreAJourPV(ctx, mouvement, distanceRacine);
                 }
                 // C'est ici que la coupure se produit !
                 if (alpha >= beta)
-                {
-                    meilleurMouvementLocal = mouvement; // Ajout : Sécurité, c'est ce coup qui provoque la coupure !
-                    // --- Enregistrement des Killer Moves ---
-                    // On vérifie que ce n'est pas une capture et qu'on ne dépasse pas la taille du tableau
-                    if (!mouvement.PieceCapturee.HasValue && distanceRacine < 64)
-                    {   // On décale le premier tueur en position 2, et on place le nouveau en position 1
-                        ctx.KillerMoves[distanceRacine, 1] = ctx.KillerMoves[distanceRacine, 0];
-                        ctx.KillerMoves[distanceRacine, 0] = mouvement;
-
-                        // Bonus d'historique pour ce coup calme qui provoque une coupure !
-                        // Plus la profondeur est grande, plus le coup est important.
-                        ctx.TableHistorique[mouvement.CaseDepart, mouvement.CaseArrivee] += profondeur * profondeur;
-                    }
+                {   // C'est ce coup qui provoque la coupure
+                    meilleurMouvementLocal = mouvement;
+                    EnregistrerCoupureCalme(ctx, mouvement, profondeur, distanceRacine);
                     break;
                 }
             }
@@ -896,16 +721,205 @@ namespace Athos64
             // =======================================================
             // --- 5. Stockage dans la table de transposition      ---
             // =======================================================
-            TypeBorne type;
-            if (meilleurScoreLocal <= alphaOrigine) type = TypeBorne.BorneSuperieure;
-            else if (meilleurScoreLocal >= betaOrigine) type = TypeBorne.BorneInferieure;
-            else type = TypeBorne.Exact;
-            // ON FILTRE ICI !
-            int scoreAStocker = FiltrerScoreTT_Entree(meilleurScoreLocal, distanceRacine);
-            TT.Stocker(e.CleActuelle, scoreAStocker, profondeur, type, meilleurMouvementLocal);
+            StockerResultatTT(e, profondeur, distanceRacine, alphaOrigine, betaOrigine, meilleurScoreLocal, meilleurMouvementLocal);
             // SÉCURITÉ : On nettoie la liste avant de quitter le nœud pour que le pool reste propre
             listeMouvements.Clear();
             return meilleurScoreLocal;
+        }
+        // Tous les 64 nœuds, lève ArretRechercheException si l'arrêt a été demandé
+        private static void VerifierArretDemande(ContexteRecherche ctx)
+        {
+            if ((ctx.NombreDeNoeuds & 63) == 0 && GestionTempsEnCours?.DemandeArret == true)
+                throw new ArretRechercheException();
+        }
+
+        // Tous les 64 nœuds, lève ArretRechercheException si le temps alloué est écoulé
+        private static void VerifierTemps(ContexteRecherche ctx)
+        {
+            if ((ctx.NombreDeNoeuds & 63) == 0 && Recherche.GestionTempsEnCours != null)
+                Recherche.GestionTempsEnCours.DoitArreter();
+        }
+
+        // Règle des 50 coups ou triple répétition : la position vaut 0
+        private static bool PartieNulle(Echiquier e, int distanceRacine)
+        {
+            if (e.RegleDes50Coups >= 100)
+                return true;
+
+            if (distanceRacine > 0)
+            {
+                ulong cleActuelle = e.CleActuelle;
+                // On s'arrête au dernier coup irréversible, et on remonte l'historique de 2 en 2 (même joueur)
+                int limiteArriere = Math.Max(0, e.DemiCoupActuel - e.RegleDes50Coups);
+                for (int i = e.DemiCoupActuel - 2; i >= limiteArriere; i -= 2)
+                {
+                    if (e.HistoriqueCles[i] == cleActuelle)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        // Consulte la table de transposition. Retourne true si elle permet de couper tout de suite
+        // (le score à renvoyer est alors dans scoreRetour). Sinon alpha et beta ont pu être resserrés
+        // et coupTT contient le coup de la table (à essayer en premier), ou rien.
+        private static bool SonderTable(ContexteRecherche ctx, Echiquier e, int profondeur, int distanceRacine,
+                                        ref int alpha, ref int beta, out Echiquier.Mouvement coupTT, out int scoreRetour)
+        {
+            coupTT = default;
+            scoreRetour = 0;
+            EntreeTT? entree = TT.Recuperer(e.CleActuelle);
+            if (!entree.HasValue)
+                return false;
+
+            // On a une entrée pour la position actuelle, mais est-elle exploitable à ce stade de la recherche ?
+            ctx.InterrogationsTT++;
+
+            // Profondeur > 0 (strict) pour interdire les coups de Quiescence (-1 ou 0)
+            if (entree.Value.Profondeur > 0 && entree.Value.CaseDepartMeilleur != entree.Value.CaseArriveeMeilleur)
+            {
+                coupTT = new Echiquier.Mouvement(
+                    entree.Value.CaseDepartMeilleur,
+                    entree.Value.CaseArriveeMeilleur,
+                    Echiquier.TypePiece.Pion,
+                    null,
+                    entree.Value.PromotionMeilleur
+                );
+            }
+
+            // Récupération et ajustement du score pour les transpositions de Mat
+            int scoreTT = FiltrerScoreTT_Sortie(entree.Value.Score, distanceRacine);
+
+            if (entree.Value.Profondeur >= profondeur)
+            {
+                if (entree.Value.Type == TypeBorne.Exact)
+                {   // Valeur exacte : coupure immédiate
+                    ctx.UtilisationsCoupTT++;
+                    ctx.CoupuresTT++;
+                    if (distanceRacine == 0 && coupTT.CaseDepart != coupTT.CaseArrivee)
+                    {
+                        ctx.TablePV[0, 0] = coupTT;
+                        ctx.LongueurPV[0] = 1;
+                    }
+                    scoreRetour = scoreTT;
+                    return true;
+                }
+                else if (entree.Value.Type == TypeBorne.BorneInferieure)
+                {   // Score minimum connu : si c'est déjà >= beta, coupure beta directe
+                    if (scoreTT >= beta)
+                    {
+                        ctx.UtilisationsCoupTT++;
+                        ctx.CoupuresTT++;
+                        scoreRetour = scoreTT;
+                        return true;
+                    }
+                    alpha = Math.Max(alpha, scoreTT);
+                }
+                else if (entree.Value.Type == TypeBorne.BorneSuperieure)
+                {   // Score maximum connu : si c'est déjà <= alpha, coupure alpha directe
+                    if (scoreTT <= alpha)
+                    {
+                        ctx.UtilisationsCoupTT++;
+                        ctx.CoupuresTT++;
+                        scoreRetour = scoreTT;
+                        return true;
+                    }
+                    beta = Math.Min(beta, scoreTT);
+                }
+                if (alpha >= beta)
+                {   // Effondrement de la fenêtre alpha-bêta
+                    ctx.UtilisationsCoupTT++;
+                    ctx.CoupuresTT++;
+                    scoreRetour = alpha;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Null Move Pruning : retourne true si passer son tour laisse la position assez forte pour couper (le nœud renvoie alors beta)
+        private static bool CoupNulDonneCoupure(ContexteRecherche ctx, Echiquier e, int profondeur, int distanceRacine, int beta)
+        {
+            int Réduction = 2 + profondeur / 4;
+            Réduction = Math.Min(Réduction, 4);
+
+            // SÉCURITÉ ZUGZWANG : le camp actif doit avoir des pièces (mineures ou majeures) en plus de son Roi et ses pions.
+            // S'il ne lui reste que des pions, on désactive le Null Move pour éviter de rater un Zugzwang.
+            ulong piecesDuCamp = e.CoteBlanc
+                ? (e.ReineBlanche | e.ToursBlanches | e.FousBlancs | e.CavaliersBlancs)
+                : (e.ReineNoire | e.ToursNoires | e.FousNoirs | e.CavaliersNoirs);
+
+            bool roiActifEnEchec = e.RoiEnEchec(e.CoteBlanc);
+
+            if (profondeur >= 3 && !roiActifEnEchec && piecesDuCamp != 0UL)
+            {   // On sauvegarde la case en-passant actuelle avant de l'annuler
+                int enPassantSauvegarde = e.CaseEnPassant;
+
+                e.JouerCoupNul();
+                bool nnueNul = BrunoNNUE.JouerCoupNul(ctx.Nnue);
+                // Recherche réduite avec une fenêtre nulle (Null Window Search)
+                int scoreNull = -Negamax(e, profondeur - 1 - Réduction, distanceRacine + 1, -beta, -beta + 1, ctx);
+                if (nnueNul) BrunoNNUE.Annuler(ctx.Nnue);
+                e.AnnulerCoupNul(enPassantSauvegarde);
+
+                // Coupure Beta, sauf si le score indique un mat (très proche de l'infini) : on évite les faux positifs
+                if (scoreNull >= beta && scoreNull < INFINI - 10000)
+                    return true;
+            }
+            return false;
+        }
+
+        // Réduction LMR d'un coup calme : base de la table, moins un si l'historique est bon, entre 1 et profondeur - 1
+        private static int CalculerReductionLMR(ContexteRecherche ctx, Echiquier.Mouvement mouvement, int profondeur, int numeroCoup)
+        {
+            int dIdx = Math.Min(profondeur, 63);
+            int mIdx = Math.Min(numeroCoup, 63);
+            int reduction = TableLMR[dIdx, mIdx];
+
+            // Si le coup a un bon score historique, on réduit moins
+            int scoreHist = ctx.TableHistorique[mouvement.CaseDepart, mouvement.CaseArrivee];
+            if (scoreHist > 10000) reduction--;
+
+            // Sécurité pour garder au moins 1 pli de profondeur
+            return Math.Clamp(reduction, 1, profondeur - 1);
+        }
+
+        // Le coup améliore alpha : il devient le premier coup de la variante principale (PV) de ce pli,
+        // suivi de la PV du pli suivant
+        private static void MettreAJourPV(ContexteRecherche ctx, Echiquier.Mouvement mouvement, int distanceRacine)
+        {
+            ctx.TablePV[distanceRacine, distanceRacine] = mouvement;
+
+            int limiteSuivante = Math.Min(ctx.LongueurPV[distanceRacine + 1], 127);
+            for (int suivant = distanceRacine + 1; suivant < limiteSuivante; suivant++)
+            {
+                ctx.TablePV[distanceRacine, suivant] = ctx.TablePV[distanceRacine + 1, suivant];
+            }
+            ctx.LongueurPV[distanceRacine] = limiteSuivante;
+        }
+
+        // Un coup calme provoque une coupure : il devient coup tueur et son historique augmente
+        private static void EnregistrerCoupureCalme(ContexteRecherche ctx, Echiquier.Mouvement mouvement, int profondeur, int distanceRacine)
+        {
+            if (!mouvement.PieceCapturee.HasValue && distanceRacine < 64)
+            {   // On décale le premier tueur en position 2, et on place le nouveau en position 1
+                ctx.KillerMoves[distanceRacine, 1] = ctx.KillerMoves[distanceRacine, 0];
+                ctx.KillerMoves[distanceRacine, 0] = mouvement;
+
+                // Plus la profondeur est grande, plus le coup est important
+                ctx.TableHistorique[mouvement.CaseDepart, mouvement.CaseArrivee] += profondeur * profondeur;
+            }
+        }
+
+        // Stocke le résultat du nœud dans la table de transposition (le score de mat est rendu indépendant de la profondeur)
+        private static void StockerResultatTT(Echiquier e, int profondeur, int distanceRacine, int alphaOrigine, int betaOrigine,
+                                              int meilleurScore, Echiquier.Mouvement meilleurMouvement)
+        {
+            TypeBorne type;
+            if (meilleurScore <= alphaOrigine) type = TypeBorne.BorneSuperieure;
+            else if (meilleurScore >= betaOrigine) type = TypeBorne.BorneInferieure;
+            else type = TypeBorne.Exact;
+            TT.Stocker(e.CleActuelle, FiltrerScoreTT_Entree(meilleurScore, distanceRacine), profondeur, type, meilleurMouvement);
         }
         private static int FiltrerScoreTT_Entree(int score, int distanceRacine)
         {   // À l'entrée, on transforme le score relatif à la racine en score absolu (indépendant de la profondeur)
