@@ -914,6 +914,114 @@ namespace Athos64
             return score;
         }
 
+        // Table de transposition en quiescence. Retourne true si elle permet de couper tout de suite
+        // (le score à renvoyer est alors dans scoreRetour). Sinon alpha et beta ont pu être resserrés ;
+        // entree est l'entrée trouvée, pour décider plus tard s'il faut la remplacer.
+        private static bool SonderTableQuiescence(ContexteRecherche ctx, Echiquier e, int distanceRacine,
+                                                  ref int alpha, ref int beta, out EntreeTT? entree, out int scoreRetour)
+        {
+            scoreRetour = 0;
+            entree = TT.Recuperer(e.CleActuelle);
+            if (!entree.HasValue)
+                return false;
+
+            // SÉCURITÉ : On n'utilise l'entrée TT que si sa profondeur de calcul
+            // est au moins égale à celle de la quiescence (ici, -1)
+            if (entree.Value.Profondeur >= -1)
+            {
+                // Filtrage du score de Mat en sortie de la TT
+                int scoreTT = FiltrerScoreTT_Sortie(entree.Value.Score, distanceRacine);
+
+                if (entree.Value.Type == TypeBorne.Exact)
+                {
+                    ctx.CoupuresTTQuiescence++; // C'est une vraie coupure directe
+                    scoreRetour = scoreTT;
+                    return true;
+                }
+                else if (entree.Value.Type == TypeBorne.BorneInferieure)
+                    alpha = Math.Max(alpha, scoreTT);
+                else if (entree.Value.Type == TypeBorne.BorneSuperieure)
+                    beta = Math.Min(beta, scoreTT);
+
+                if (alpha >= beta)
+                {
+                    ctx.CoupuresTTQuiescence++; // C'est un élagage alpha/beta grâce aux bornes de la TT
+                    scoreRetour = scoreTT;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Tri des coups de la quiescence : MVV-LVA affiné par le SEE. Une capture dont l'échange est perdant
+        // est poussée tout en bas ; un coup calme (parade d'échec) passe après les captures.
+        private static void TrierCapturesQuiescence(Echiquier e, List<Echiquier.Mouvement> captures)
+        {
+            for (int i = 0; i < captures.Count; i++)
+            {
+                var m = captures[i];
+                if (m.PieceCapturee.HasValue)
+                {
+                    int valCapturee = ObtenirValeurPiece(m.PieceCapturee.Value);
+                    int valAttaquante = ObtenirValeurPiece(m.Piece);
+
+                    // On utilise le SEE pour corriger le tri MVV-LVA de base (si l'échange statique est perdant, on le pénalise)
+                    int scoreSEE = EchangeStatiqueEval.ObtenirSEE(e, m.CaseArrivee, valCapturee, valAttaquante);
+
+                    if (scoreSEE >= 0)
+                        m.ScoreTri = 100000 + (valCapturee * 100) - valAttaquante;
+                    else
+                        m.ScoreTri = -100000 + scoreSEE; // Mauvaise capture poussée tout en bas de l'échelle
+                }
+                else
+                {   // Un coup calme pour parer un échec est important, mais passe après les captures.
+                    // On lui donne un score de base ou un bonus si c'est une fuite du Roi.
+                    m.ScoreTri = m.Piece == Echiquier.TypePiece.Roi ? 10 : 0;
+                }
+                captures[i] = m;
+            }
+        }
+
+        // Élagage d'une capture de la quiescence, sans la jouer : marge sur le score statique, perte nette au SEE,
+        // puis Delta Pruning (jamais en échec, jamais pour une promotion ni pour la prise d'une tour ou d'une dame)
+        private static bool CaptureElaguee(Echiquier e, Echiquier.Mouvement m, bool enEchec, int scoreStatique, int alpha)
+        {
+            if (!enEchec && m.PieceCapturee.HasValue && m.Promotion == null)
+            {
+                int valCapturee = ObtenirValeurPiece(m.PieceCapturee.Value);
+                // Marge dynamique (200 + valeurCapture/2)
+                if (scoreStatique + valCapturee + 200 + (valCapturee / 2) < alpha)
+                    return true;
+                int valAttaquante = ObtenirValeurPiece(m.Piece);
+
+                int see = EchangeStatiqueEval.ObtenirSEE(e, m.CaseArrivee, valCapturee, valAttaquante);
+                int seuil = -ObtenirValeurPiece(m.Piece) / 2;
+                if (see < seuil)
+                    return true;
+            }
+
+            // Delta Pruning : même en capturant la pièce, le score reste loin derrière alpha
+            if (!enEchec && m.PieceCapturee.HasValue)
+            {
+                int valeurCapture = ObtenirValeurPiece(m.PieceCapturee ?? Echiquier.TypePiece.Pion);
+                // SÉCURITÉ : si la capture concerne une Tour ou une Reine (valeur >= 500), on ne peut pas élaguer aveuglément
+                if (valeurCapture < 500)
+                {
+                    int margeDelta = 200 + (valeurCapture / 2);
+                    if (scoreStatique + valeurCapture + margeDelta < alpha && m.Promotion == null)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        // Stocke un résultat de quiescence (profondeur -1), sauf si la table contient déjà une entrée de recherche normale
+        private static void StockerQuiescence(Echiquier e, EntreeTT? entree, int distanceRacine, int score, TableTransposition.TypeBorne borne)
+        {
+            if (!entree.HasValue || entree.Value.Profondeur < 0)
+                TT.Stocker(e.CleActuelle, FiltrerScoreTT_Entree(score, distanceRacine), -1, borne, default);
+        }
+
         private static int RechercheQuiescence(ContexteRecherche ctx, Echiquier e, int alpha, int beta, int distanceRacine)
         {
             ctx.NombreDeNoeuds++;
@@ -939,33 +1047,8 @@ namespace Athos64
             }
 
             // --- Optimisation TT en Quiescence ---
-            EntreeTT? entree = TT.Recuperer(e.CleActuelle);
-            if (entree.HasValue)
-            {
-                // SÉCURITÉ : On n'utilise l'entrée TT que si sa profondeur de calcul
-                // est au moins égale à celle de la quiescence (ici, -1)
-                if (entree.Value.Profondeur >= -1)
-                {
-                    // Filtrage du score de Mat en sortie de la TT
-                    int scoreTT = FiltrerScoreTT_Sortie(entree.Value.Score, distanceRacine);
-
-                    if (entree.Value.Type == TypeBorne.Exact)
-                    {
-                        ctx.CoupuresTTQuiescence++; // C'est une vraie coupure directe
-                        return scoreTT;
-                    }
-                    else if (entree.Value.Type == TypeBorne.BorneInferieure)
-                        alpha = Math.Max(alpha, scoreTT);
-                    else if (entree.Value.Type == TypeBorne.BorneSuperieure)
-                        beta = Math.Min(beta, scoreTT);
-
-                    if (alpha >= beta)
-                    {
-                        ctx.CoupuresTTQuiescence++; // C'est un élagage alpha/beta grâce aux bornes de la TT
-                        return scoreTT;
-                    }
-                }
-            }
+            if (SonderTableQuiescence(ctx, e, distanceRacine, ref alpha, ref beta, out EntreeTT? entree, out int scoreTT))
+                return scoreTT;
 
             // On ne s'autorise à parer l'échec (générer les coups calmes) que si on vient d'entrer en Quiescence (ex: pendant 2 plis max)
             // Au-delà, si la tempête d'échecs continue, on considère la position comme trop instable et on passe à l'évaluation statique.
@@ -1007,29 +1090,7 @@ namespace Athos64
                 // --- 3. Tri des coups (MVV-LVA affiné par le SEE) ---
                 // Most Valuable Victim - Least Valuable Attacker
                 // On trie pour explorer les meilleures captures en premier (ex: Fou prend Reine avant Pion prend Pion)
-                for (int i = 0; i < captures.Count; i++)
-                {
-                    var m = captures[i];
-                    if (m.PieceCapturee.HasValue)
-                    {
-                        int valCapturee = ObtenirValeurPiece(m.PieceCapturee.Value);
-                        int valAttaquante = ObtenirValeurPiece(m.Piece);
-
-                        // On utilise le SEE pour corriger le tri MVV-LVA de base (si l'échange statique est perdant, on le pénalise)
-                        int scoreSEE = EchangeStatiqueEval.ObtenirSEE(e, m.CaseArrivee, valCapturee, valAttaquante);
-
-                        if (scoreSEE >= 0)
-                            m.ScoreTri = 100000 + (valCapturee * 100) - valAttaquante;
-                        else
-                            m.ScoreTri = -100000 + scoreSEE; // Mauvaise capture poussée tout en bas de l'échelle
-                    }
-                    else
-                    {   // Un coup calme pour parer un échec est important, mais passe après les captures.
-                        // On lui donne un score de base ou un bonus si c'est une fuite du Roi.
-                        m.ScoreTri = m.Piece == Echiquier.TypePiece.Roi ? 10 : 0;
-                    }
-                    captures[i] = m;
-                }
+                TrierCapturesQuiescence(e, captures);
 
                 int alphaInitial = alpha;   // Sauvegarde de l'alpha initial pour déterminer le bon type de borne en fin de fonction ---
 
@@ -1038,38 +1099,9 @@ namespace Athos64
                     ChoisirMeilleurMouvement(captures, i);
                     var m = captures[i];
 
-                    // --- Élagage chirurgical par le SEE ---
-                    // Si on n'est pas en échec, qu'il s'agit d'une capture, et que le SEE indique une perte matérielle nette,
-                    // on ignore purement et simplement ce coup sans simuler le mouvement.
-                    if (!enEchec && m.PieceCapturee.HasValue && m.Promotion == null)
-                    {
-                        int valCapturee = ObtenirValeurPiece(m.PieceCapturee.Value);
-                        // Ajoute une marge dynamique (ex: 200 + valeurCapture/2)
-                        if (scoreStatique + valCapturee + 200 + (valCapturee / 2) < alpha)
-                            continue;
-                        int valAttaquante = ObtenirValeurPiece(m.Piece);
-
-                        int see = EchangeStatiqueEval.ObtenirSEE(e, m.CaseArrivee, valCapturee, valAttaquante);
-                        int seuil = -ObtenirValeurPiece(m.Piece) / 2;
-                        if (see < seuil)
-                            continue;
-                    }
-
-                    // --- 4. Delta Pruning ---
-                    // Si même en capturant la pièce, le score reste loin derrière alpha (avec une marge de 200), 
-                    // on ignore ce coup. On ne le fait pas si c'est une promotion ou une pièce de grande valeur.
-                    if (!enEchec && m.PieceCapturee.HasValue)
-                    {   // On s'assure qu'il s'agit bien d'une capture effective et qu'on n'est pas en échec
-                        int valeurCapture = ObtenirValeurPiece(m.PieceCapturee ?? Echiquier.TypePiece.Pion);
-                        // SÉCURITÉ : Si la capture concerne une Tour ou une Reine (valeur >= 500), 
-                        // on NE PEUT PAS élaguer aveuglément. On doit analyser le coup.
-                        if (valeurCapture < 500)
-                        {   // Utilisation de la marge dynamique : 200 + (valeurCapture / 2)
-                            int margeDelta = 200 + (valeurCapture / 2);
-                            if (scoreStatique + valeurCapture + margeDelta < alpha && m.Promotion == null)
-                                continue;
-                        }
-                    }
+                    // Élagage des captures perdantes (marge, SEE) et Delta Pruning : voir CaptureElaguee
+                    if (CaptureElaguee(e, m, enEchec, scoreStatique, alpha))
+                        continue;
 
                     // --- 5. Simulation du coup ---
                     bool nnueJoue = BrunoNNUE.JouerCoup(ctx.Nnue, m.CaseDepart, m.CaseArrivee, m.Promotion);
@@ -1083,11 +1115,8 @@ namespace Athos64
 
                     if (score >= beta)
                     {        // Élagage Alpha-Beta standard
-                        if (!entree.HasValue || entree.Value.Profondeur < 0)
-                        {   // Si on bat beta, on stocke IMMÉDIATEMENT cette borne inférieure avant de s'enfuir !
-                            int scoreAStocker = FiltrerScoreTT_Entree(score, distanceRacine);
-                            TT.Stocker(e.CleActuelle, scoreAStocker, -1, TableTransposition.TypeBorne.BorneInferieure, default);
-                        }
+                        // Si on bat beta, on stocke IMMÉDIATEMENT cette borne inférieure avant de s'enfuir !
+                        StockerQuiescence(e, entree, distanceRacine, score, TableTransposition.TypeBorne.BorneInferieure);
                         return score;
                     }
 
@@ -1105,15 +1134,9 @@ namespace Athos64
                 }
 
                 // --- STOCKAGE EN FIN DE BOUCLE (Fail-Low ou Exact) ---
-                if (!entree.HasValue || entree.Value.Profondeur < 0)
-                {   // Une BorneSuperieure (Fail-Low) n'arrive QUE si le meilleur score n'a même pas pu atteindre l'alpha d'ENTRÉE de la fonction.
-                    TableTransposition.TypeBorne borneQ = meilleurScoreQ <= alphaInitial
-                        ? TableTransposition.TypeBorne.BorneSuperieure
-                        : TableTransposition.TypeBorne.Exact;
-
-                    int scoreAStocker = FiltrerScoreTT_Entree(meilleurScoreQ, distanceRacine);
-                    TT.Stocker(e.CleActuelle, scoreAStocker, -1, borneQ, default);
-                }
+                // Une BorneSuperieure (Fail-Low) n'arrive QUE si le meilleur score n'a même pas pu atteindre l'alpha d'ENTRÉE de la fonction.
+                StockerQuiescence(e, entree, distanceRacine, meilleurScoreQ,
+                    meilleurScoreQ <= alphaInitial ? TableTransposition.TypeBorne.BorneSuperieure : TableTransposition.TypeBorne.Exact);
             }
             finally
             {
