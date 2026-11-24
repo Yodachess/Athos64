@@ -103,52 +103,8 @@ namespace Athos64
             Recherche.GestionTempsEnCours = gestionTemps;
             gestionTemps.DemandeArret = false;
 
-            // ======================================================================
-            //             Mise en place de variété pour le 1er coup
-            // ======================================================================
-            Mouvement? coupForcePremierTour = null;
-            if (echiquier.CoteBlanc)
-            {       // Variété côté blanc
-                if (echiquier.EstPositionInitiale())
-                {   // Si on est au tout début de la partie, on force un coup d'ouverture parmi les plus populaires.
-                    List<Mouvement> coupsLegaux = [];
-                    echiquier.GenererMouvementsLegauxCommun(coupsLegaux);
-                    List<string> choixSouhaites = ["e2e4", "d2d4", "c2c4", "g1f3"];
-                    List<Mouvement> optionsValides = [.. coupsLegaux.Where(m => choixSouhaites.Contains(ProtocoleUCI.ConvertirMouvementEnUCI(m)))];
-                    if (optionsValides.Count == 0) optionsValides = coupsLegaux;
-                    if (optionsValides.Count > 0)
-                    {   // Si on a trouvé des coups valides, on en choisit un au hasard
-                        Random rand = new();
-                        coupForcePremierTour = optionsValides[rand.Next(optionsValides.Count)];
-                    }
-                }
-            }
-            else if (!echiquier.CoteBlanc)
-            {       // Variété côté noir après le premier coup blanc 
-                List<Mouvement> coupsLegauxNoirs = [];
-                echiquier.GenererMouvementsLegauxCommun(coupsLegauxNoirs);
-
-                List<Mouvement> optionsPropres = [];
-                if (echiquier.EstApresE4())
-                {   // Après 1.e4
-                    optionsPropres = [.. coupsLegauxNoirs.Where(m =>
-                        (m.CaseDepart == 50 && m.CaseArrivee == 34) ||  // c7c5
-                        (m.CaseDepart == 52 && m.CaseArrivee == 44) ||  // e7e6
-                        (m.CaseDepart == 52 && m.CaseArrivee == 36))];  // e7e5
-                }
-                else if (echiquier.EstApresD4() || echiquier.EstApresC4() || echiquier.EstApresCf3())
-                {   // Après 1.d4, c4 ou Cf3        
-                    optionsPropres = [.. coupsLegauxNoirs.Where(m =>
-                        (m.CaseDepart == 52 && m.CaseArrivee == 44) ||  // e7e6
-                        (m.CaseDepart == 51 && m.CaseArrivee == 35) ||  // d7d5
-                        (m.CaseDepart == 62 && m.CaseArrivee == 45))];  // g8f6
-                }   
-                if (optionsPropres.Count > 0)
-                {   // Si on a trouvé des coups valides, on en choisit un au hasard
-                    Random rand = new();
-                    coupForcePremierTour = optionsPropres[rand.Next(optionsPropres.Count)];
-                }
-            }
+            // Variété pour le 1er coup : un coup d'ouverture choisi au hasard parmi les plus populaires
+            Mouvement? coupForcePremierTour = ChoisirCoupVarie(echiquier);
             // --- Si un coup est forcé, on court-circuite immédiatement ---
             if (coupForcePremierTour.HasValue) 
             {
@@ -181,51 +137,9 @@ namespace Athos64
                 fileDeProfondeurs.Enqueue(p);
             }
 
-            // Déclaration des structures pour gérer les threads aides
-            Task[] tachesAides = new Task[ProtocoleUCI.NombreThreads - 1];
-            var contextesAides = new System.Collections.Concurrent.ConcurrentBag<ContexteRecherche>();  // Cette collection thread-safe
-                                    // permet à plusieurs threads d'y ajouter leur ContexteRecherche simultanément sans risque de crash.
-
-            // --- LANCEMENT DES THREADS AIDES (Lazy SMP Divergent) ---
-            for (int t = 1; t < NombreThreads; t++)
-            {
-                int threadId = t; // Capture de l'index pour le thread
-                // Copie faite ici, par le thread principal, avant son premier coup : si le thread d'aide démarrait tard
-                // (machine chargée), il copierait un échiquier que le thread principal est en train de modifier.
-                var echiquierAide = echiquier.Cloner();
-                tachesAides[t - 1] = Task.Run(() =>
-                {
-                    var ctxAide = new ContexteRecherche();
-                    contextesAides.Add(ctxAide);
-                    ctxAide.Nnue = BrunoNNUE.CreerContexte();
-                    if (!BrunoNNUE.DefinirPosition(ctxAide.Nnue, echiquierAide))
-                    {
-                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
-                        ctxAide.Nnue = IntPtr.Zero;
-                    }
-
-                    try
-                    {
-                        // Les threads aides piochaient dynamiquement chaque profondeur non attribuée
-                        while (fileDeProfondeurs.TryDequeue(out int p))
-                        {
-                            if (gestionTemps.DemandeArret) break;
-
-                            // Recherche avec fenêtre ouverte
-                            Negamax(echiquierAide, p, 0, -INFINI, INFINI, ctxAide);
-                        }
-                    }
-                    catch (ArretRechercheException) { /* Arrêt propre */ }
-                    catch (Exception)
-                    {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale
-                    }
-                    finally
-                    {
-                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
-                        ctxAide.Nnue = IntPtr.Zero;
-                    }
-                });
-            }       
+            // Threads aides (Lazy SMP) : chacun a son échiquier, son contexte de recherche et son contexte NNUE
+            var contextesAides = new System.Collections.Concurrent.ConcurrentBag<ContexteRecherche>();
+            Task[] tachesAides = LancerThreadsAides(echiquier, fileDeProfondeurs, contextesAides, gestionTemps);
             
             // --- 3. THREAD PRINCIPAL (Thread 0) ---
             DateTime heureDebut = DateTime.Now; // Nécessaire pour le calcul des Noeuds Par Seconde (NPS)
@@ -246,138 +160,8 @@ namespace Athos64
                     ctxPrincipal.NoeudsQuiescence = 0;
                     ctxPrincipal.ProfondeurMaxAtteinte = 0;
 
-                    void ValiderPV()
-                    {   // Validation et reconstruction de la PV après chaque recherche.
-                        // Récupère le meilleur coup trouvé et complète la PV si nécessaire
-                        // à partir de la table de transposition.
-                        Mouvement premierCoup = ctxPrincipal.TablePV[0, 0];
-                        if (premierCoup.CaseDepart == premierCoup.CaseArrivee)
-                            premierCoup = MeilleurMouvementTrouve;
-                        if (premierCoup.CaseDepart == premierCoup.CaseArrivee)
-                            return;
-
-                        meilleurMouvementGlobal = premierCoup;
-
-                        if (ctxPrincipal.LongueurPV[0] > 1)
-                        {   // Si la PV existe déjà, on ne touche à rien
-                            lignePVGlobal = ObtenirLignePV(echiquier, p, ctxPrincipal);
-                            return;
-                        }
-                        // PV réduite à un seul coup : on essaie de la prolonger avec le TT
-                        ctxPrincipal.TablePV[0, 0] = premierCoup;
-                        ctxPrincipal.LongueurPV[0] = 1;
-
-                        // Copie isolée pour ne pas altérer l'échiquier principal
-                        // ni subir de conflits pendant que les threads assistants travaillent
-                        var echiquierPV = echiquier.Cloner();
-                        Mouvement coup = premierCoup;
-
-                        for (int i = 1; i < p; i++)
-                        {
-                            echiquierPV.JouerCoup(coup.CaseDepart, coup.CaseArrivee, coup.Promotion);
-                            EntreeTT? entree = TT.Recuperer(echiquierPV.CleActuelle);
-
-                            if (!entree.HasValue)
-                                break;
-                            if (entree.Value.CaseDepartMeilleur == entree.Value.CaseArriveeMeilleur)
-                                break;
-
-                            var mouvements = ctxPrincipal.PoolListes[i];
-                            mouvements.Clear();
-                            echiquierPV.GenererMouvementsLegauxCommun(mouvements);
-
-                            bool trouve = false;
-                            foreach (var m in mouvements)
-                            {
-                                if (m.CaseDepart == entree.Value.CaseDepartMeilleur &&
-                                    m.CaseArrivee == entree.Value.CaseArriveeMeilleur &&
-                                    m.Promotion == entree.Value.PromotionMeilleur)
-                                {
-                                    coup = m;
-                                    ctxPrincipal.TablePV[0, i] = m;
-                                    ctxPrincipal.LongueurPV[0] = i + 1;
-                                    trouve = true;
-                                    break;
-                                }
-                            }
-                            mouvements.Clear();
-
-                            if (!trouve)
-                                break;
-                        }
-                        lignePVGlobal = ObtenirLignePV(echiquier, p, ctxPrincipal);
-                    }
-
-                    // ========================================================================
-                    // Recherche complète de référence puis recherche avec fenêtre d'aspiration
-                    // ========================================================================
-                    // À partir de la profondeur 5, une fenêtre d'aspiration est utilisée.
-                    // Les profondeurs 1 à 4 restent en recherche complète.
-
-                    if (p <= 4)
-                    {   // Recherche complète de référence
-                        score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
-                        ValiderPV();
-                    }
-                    else
-                    {   // ---------------- Fenêtre d'aspiration ----------------
-
-                        // Recherche complète pour obtenir le score de référence
-                        score = Negamax(echiquier, p, 0,-INFINI, INFINI, ctxPrincipal);
-                        ValiderPV();
-
-                        const int MargeInitiale = 50;
-                        int marge = MargeInitiale;
-
-                        int alphaFenetre = Math.Max(score - marge, -INFINI);
-                        int betaFenetre = Math.Min(score + marge, INFINI);
-
-                        for (int tentative = 0; tentative < 6; tentative++)
-                        {
-                            int scoreFenetre = Negamax(echiquier, p, 0, alphaFenetre, betaFenetre, ctxPrincipal);
-
-                            // ---------------------------------------------------------
-                            // MAT : on refait immédiatement une recherche complète
-                            // pour obtenir une PV complète et fiable.
-                            // ---------------------------------------------------------
-                            if (Math.Abs(scoreFenetre) >= SCORE_MAT - 100)
-                            {
-                                score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
-                                ValiderPV();
-                                break;
-                            }
-
-                            if (scoreFenetre > alphaFenetre && scoreFenetre < betaFenetre)
-                            {   // Score dans la fenêtre
-                                score = scoreFenetre;
-                                ValiderPV();
-                                break;
-                            }
-
-                            // ---------------------------------------------------------
-                            // FAIL-LOW / FAIL-HIGH
-                            // ---------------------------------------------------------
-                            score = scoreFenetre;
-                            marge *= 2;
-
-                            if (scoreFenetre <= alphaFenetre)
-                            {   // FAIL-LOW
-                                alphaFenetre = Math.Max(scoreFenetre - marge, -INFINI);
-                            }
-                            else
-                            {   // FAIL-HIGH
-                                betaFenetre = Math.Min(scoreFenetre + marge, INFINI);
-                            }
-
-                            if (alphaFenetre == -INFINI && betaFenetre == INFINI)
-                            {   // Fenêtre complètement ouverte
-                                score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
-                                ValiderPV();
-                                break;
-                            }
-                        }
-                        // -------------Fin Fenêtre d'aspiration ----------------
-                    }
+                    // Recherche complète puis, à partir de la profondeur 5, recherche avec fenêtre d'aspiration
+                    score = RechercherAProfondeur(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
 
                     // ------------------------------------------------------------------
                     // Mise à jour de averageScore comme dans Stockfish RootMove
@@ -391,73 +175,10 @@ namespace Athos64
                     {
                         averageScore = (score + averageScore) / 2;
                     }
-                    // Calcul de l'optimism selon Stockfish 19
-                    int optimism = 114 * averageScore /
-                                   (Math.Abs(averageScore) + 85);
-                    // Stockfish utilise optimism[WHITE] et optimism[BLACK].
-                    if (echiquier.CoteBlanc)
-                    {
-                        OptimismBlanc = optimism;
-                        OptimismNoir = -optimism;
-                    }
-                    else
-                    {
-                        OptimismNoir = optimism;
-                        OptimismBlanc = -optimism;
-                    }
+                    MettreAJourOptimism(echiquier, averageScore);   // Optimism selon Stockfish 19
 
-                    // --- CALCULS ---
-                    TimeSpan duree = DateTime.Now - heureDebut;
-                    double secondes = duree.TotalSeconds;
-
-                    // En multi-thread (Lazy SMP), le total de nœuds est la somme du thread principal + des threads aides
-                    long noeudsTotaux = ctxPrincipal.NombreDeNoeuds;
-                    foreach (var ctxAide in contextesAides)
-                    {
-                        noeudsTotaux += ctxAide.NombreDeNoeuds;
-                    }
-
-                    // NPS : Basé sur le cumul de tous les nœuds
-                    long nps = secondes > 0.001 ? (long)(noeudsTotaux / secondes) : 0;
-                    long tempsMs = (long)duree.TotalMilliseconds;
-
-                    // Nœuds propres au Negamax (Recherche principale)
-                    double hitRate = ctxPrincipal.InterrogationsTT > 0 ? (double)ctxPrincipal.CoupuresTT / ctxPrincipal.InterrogationsTT * 100 : 0;
-                    double qHitRate = ctxPrincipal.NoeudsQuiescence > 0 ? (double)ctxPrincipal.CoupuresTTQuiescence / ctxPrincipal.NoeudsQuiescence * 100 : 0;
-
-                    // ======================================================================
-                    // --- Affichage de la ligne d'informations uci info depth ...       ---
-                    // ======================================================================
-                    string scoreString;
-                    // Seuil pour détecter un score de mat (basé dynamiquement sur INFINI)
-                    int limiteMat = INFINI - 1000;
-
-                    if (Math.Abs(score) > limiteMat)
-                    {   // Calcul de la distance du mat en nombre de COUPS (1 coup = 2 demi-coups/plies)
-                        // On ajoute 1 pour arrondir correctement la division par 2
-                        // On extrait dynamiquement le nombre de plies depuis la constante INFINI
-                        int distancePlies = INFINI - Math.Abs(score);
-                        int distanceCoups = (distancePlies + 1) / 2;
-
-                        // Sécurité pour empêcher l'affichage technique d'un "mate 0" à la racine
-                        if (distanceCoups == 0) distanceCoups = 1;
-
-                        int signe = (score > 0) ? 1 : -1;
-                        scoreString = $"mate {signe * distanceCoups}";
-                    }
-
-                    else
-                    {
-                        int scoreFinal = AppliquerScalingStockfish(echiquier, score);
-                        scoreString = $"cp {scoreFinal}";
-                        // scoreString = $"cp {score}";
-                    }
-
-                    // envoyerInfo?.Invoke($"info string avg={averageScore} optimism={optimism}");
-
-                    envoyerInfo?.Invoke($"info depth {p} seldepth {ctxPrincipal.ProfondeurMaxAtteinte} score {scoreString} " +
-                                        $"nodes {noeudsTotaux} nps {nps} time {tempsMs} " +
-                                        $"tthit {hitRate:F1}% qhit {qHitRate:F1}% pv {lignePVGlobal}");
+                    // --- Affichage de la ligne d'informations uci info depth ... ---
+                    envoyerInfo?.Invoke(ConstruireLigneInfo(echiquier, p, score, lignePVGlobal, ctxPrincipal, contextesAides, heureDebut));
                 }
             }
 
@@ -486,6 +207,302 @@ namespace Athos64
 
             return (meilleurMouvementGlobal, lignePVGlobal);
         }
+        // Variété pour la première partie : depuis la position initiale (blancs) ou après 1.e4, d4, c4, Cf3 (noirs),
+        // retourne un coup d'ouverture populaire choisi au hasard ; null sinon.
+        private static Mouvement? ChoisirCoupVarie(Echiquier echiquier)
+        {
+            Mouvement? coupForcePremierTour = null;
+            if (echiquier.CoteBlanc)
+            {       // Variété côté blanc
+                if (echiquier.EstPositionInitiale())
+                {   // Si on est au tout début de la partie, on force un coup d'ouverture parmi les plus populaires.
+                    List<Mouvement> coupsLegaux = [];
+                    echiquier.GenererMouvementsLegauxCommun(coupsLegaux);
+                    List<string> choixSouhaites = ["e2e4", "d2d4", "c2c4", "g1f3"];
+                    List<Mouvement> optionsValides = [.. coupsLegaux.Where(m => choixSouhaites.Contains(ProtocoleUCI.ConvertirMouvementEnUCI(m)))];
+                    if (optionsValides.Count == 0) optionsValides = coupsLegaux;
+                    if (optionsValides.Count > 0)
+                    {   // Si on a trouvé des coups valides, on en choisit un au hasard
+                        Random rand = new();
+                        coupForcePremierTour = optionsValides[rand.Next(optionsValides.Count)];
+                    }
+                }
+            }
+            else if (!echiquier.CoteBlanc)
+            {       // Variété côté noir après le premier coup blanc
+                List<Mouvement> coupsLegauxNoirs = [];
+                echiquier.GenererMouvementsLegauxCommun(coupsLegauxNoirs);
+
+                List<Mouvement> optionsPropres = [];
+                if (echiquier.EstApresE4())
+                {   // Après 1.e4
+                    optionsPropres = [.. coupsLegauxNoirs.Where(m =>
+                        (m.CaseDepart == 50 && m.CaseArrivee == 34) ||  // c7c5
+                        (m.CaseDepart == 52 && m.CaseArrivee == 44) ||  // e7e6
+                        (m.CaseDepart == 52 && m.CaseArrivee == 36))];  // e7e5
+                }
+                else if (echiquier.EstApresD4() || echiquier.EstApresC4() || echiquier.EstApresCf3())
+                {   // Après 1.d4, c4 ou Cf3
+                    optionsPropres = [.. coupsLegauxNoirs.Where(m =>
+                        (m.CaseDepart == 52 && m.CaseArrivee == 44) ||  // e7e6
+                        (m.CaseDepart == 51 && m.CaseArrivee == 35) ||  // d7d5
+                        (m.CaseDepart == 62 && m.CaseArrivee == 45))];  // g8f6
+                }
+                if (optionsPropres.Count > 0)
+                {   // Si on a trouvé des coups valides, on en choisit un au hasard
+                    Random rand = new();
+                    coupForcePremierTour = optionsPropres[rand.Next(optionsPropres.Count)];
+                }
+            }
+            return coupForcePremierTour;
+        }
+
+        // Lance les threads aides (Lazy SMP divergent). Chacun cherche, sur sa copie de l'échiquier, les profondeurs
+        // qu'il prend dans la file partagée. Il s'arrête quand gestionTemps.DemandeArret passe à true.
+        private static Task[] LancerThreadsAides(Echiquier echiquier, System.Collections.Concurrent.ConcurrentQueue<int> fileDeProfondeurs,
+                                                 System.Collections.Concurrent.ConcurrentBag<ContexteRecherche> contextesAides,
+                                                 GestionTemps gestionTemps)
+        {
+            Task[] tachesAides = new Task[ProtocoleUCI.NombreThreads - 1];
+            for (int t = 1; t < NombreThreads; t++)
+            {
+                // Copie faite ici, par le thread principal, avant son premier coup : si le thread d'aide démarrait tard
+                // (machine chargée), il copierait un échiquier que le thread principal est en train de modifier.
+                var echiquierAide = echiquier.Cloner();
+                tachesAides[t - 1] = Task.Run(() =>
+                {
+                    var ctxAide = new ContexteRecherche();
+                    contextesAides.Add(ctxAide);
+                    ctxAide.Nnue = BrunoNNUE.CreerContexte();
+                    if (!BrunoNNUE.DefinirPosition(ctxAide.Nnue, echiquierAide))
+                    {
+                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
+                        ctxAide.Nnue = IntPtr.Zero;
+                    }
+
+                    try
+                    {
+                        // Les threads aides piochent dynamiquement chaque profondeur non attribuée
+                        while (fileDeProfondeurs.TryDequeue(out int p))
+                        {
+                            if (gestionTemps.DemandeArret) break;
+
+                            // Recherche avec fenêtre ouverte
+                            Negamax(echiquierAide, p, 0, -INFINI, INFINI, ctxAide);
+                        }
+                    }
+                    catch (ArretRechercheException) { /* Arrêt propre */ }
+                    catch (Exception)
+                    {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale
+                    }
+                    finally
+                    {
+                        BrunoNNUE.DetruireContexte(ctxAide.Nnue);
+                        ctxAide.Nnue = IntPtr.Zero;
+                    }
+                });
+            }
+            return tachesAides;
+        }
+
+        // Recherche à la profondeur p à la racine : complète jusqu'à la profondeur 4, puis avec fenêtre d'aspiration.
+        // Retourne le score ; le meilleur coup et la ligne PV sont mis à jour par ValiderPV.
+        private static int RechercherAProfondeur(Echiquier echiquier, int p, ContexteRecherche ctxPrincipal,
+                                                 ref Mouvement? meilleurMouvementGlobal, ref string lignePVGlobal)
+        {
+            int score;
+            if (p <= 4)
+            {   // Recherche complète de référence
+                score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
+                ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+            }
+            else
+            {   // ---------------- Fenêtre d'aspiration ----------------
+
+                // Recherche complète pour obtenir le score de référence
+                score = Negamax(echiquier, p, 0,-INFINI, INFINI, ctxPrincipal);
+                ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+
+                const int MargeInitiale = 50;
+                int marge = MargeInitiale;
+
+                int alphaFenetre = Math.Max(score - marge, -INFINI);
+                int betaFenetre = Math.Min(score + marge, INFINI);
+
+                for (int tentative = 0; tentative < 6; tentative++)
+                {
+                    int scoreFenetre = Negamax(echiquier, p, 0, alphaFenetre, betaFenetre, ctxPrincipal);
+
+                    // MAT : on refait immédiatement une recherche complète pour obtenir une PV complète et fiable.
+                    if (Math.Abs(scoreFenetre) >= SCORE_MAT - 100)
+                    {
+                        score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
+                        ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+                        break;
+                    }
+
+                    if (scoreFenetre > alphaFenetre && scoreFenetre < betaFenetre)
+                    {   // Score dans la fenêtre
+                        score = scoreFenetre;
+                        ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+                        break;
+                    }
+
+                    // FAIL-LOW / FAIL-HIGH
+                    score = scoreFenetre;
+                    marge *= 2;
+
+                    if (scoreFenetre <= alphaFenetre)
+                    {   // FAIL-LOW
+                        alphaFenetre = Math.Max(scoreFenetre - marge, -INFINI);
+                    }
+                    else
+                    {   // FAIL-HIGH
+                        betaFenetre = Math.Min(scoreFenetre + marge, INFINI);
+                    }
+
+                    if (alphaFenetre == -INFINI && betaFenetre == INFINI)
+                    {   // Fenêtre complètement ouverte
+                        score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
+                        ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+                        break;
+                    }
+                }
+                // -------------Fin Fenêtre d'aspiration ----------------
+            }
+            return score;
+        }
+
+        // Validation et reconstruction de la PV après chaque recherche : récupère le meilleur coup trouvé
+        // et complète la PV si nécessaire à partir de la table de transposition.
+        private static void ValiderPV(Echiquier echiquier, int p, ContexteRecherche ctxPrincipal,
+                                      ref Mouvement? meilleurMouvementGlobal, ref string lignePVGlobal)
+        {
+            Mouvement premierCoup = ctxPrincipal.TablePV[0, 0];
+            if (premierCoup.CaseDepart == premierCoup.CaseArrivee)
+                premierCoup = MeilleurMouvementTrouve;
+            if (premierCoup.CaseDepart == premierCoup.CaseArrivee)
+                return;
+
+            meilleurMouvementGlobal = premierCoup;
+
+            if (ctxPrincipal.LongueurPV[0] > 1)
+            {   // Si la PV existe déjà, on ne touche à rien
+                lignePVGlobal = ObtenirLignePV(echiquier, p, ctxPrincipal);
+                return;
+            }
+            // PV réduite à un seul coup : on essaie de la prolonger avec le TT
+            ctxPrincipal.TablePV[0, 0] = premierCoup;
+            ctxPrincipal.LongueurPV[0] = 1;
+
+            // Copie isolée pour ne pas altérer l'échiquier principal
+            // ni subir de conflits pendant que les threads assistants travaillent
+            var echiquierPV = echiquier.Cloner();
+            Mouvement coup = premierCoup;
+
+            for (int i = 1; i < p; i++)
+            {
+                echiquierPV.JouerCoup(coup.CaseDepart, coup.CaseArrivee, coup.Promotion);
+                EntreeTT? entree = TT.Recuperer(echiquierPV.CleActuelle);
+
+                if (!entree.HasValue)
+                    break;
+                if (entree.Value.CaseDepartMeilleur == entree.Value.CaseArriveeMeilleur)
+                    break;
+
+                var mouvements = ctxPrincipal.PoolListes[i];
+                mouvements.Clear();
+                echiquierPV.GenererMouvementsLegauxCommun(mouvements);
+
+                bool trouve = false;
+                foreach (var m in mouvements)
+                {
+                    if (m.CaseDepart == entree.Value.CaseDepartMeilleur &&
+                        m.CaseArrivee == entree.Value.CaseArriveeMeilleur &&
+                        m.Promotion == entree.Value.PromotionMeilleur)
+                    {
+                        coup = m;
+                        ctxPrincipal.TablePV[0, i] = m;
+                        ctxPrincipal.LongueurPV[0] = i + 1;
+                        trouve = true;
+                        break;
+                    }
+                }
+                mouvements.Clear();
+
+                if (!trouve)
+                    break;
+            }
+            lignePVGlobal = ObtenirLignePV(echiquier, p, ctxPrincipal);
+        }
+
+        // Optimism de Stockfish 19 à partir de la moyenne des scores : Stockfish utilise optimism[WHITE] et optimism[BLACK]
+        private static void MettreAJourOptimism(Echiquier echiquier, int averageScore)
+        {
+            int optimism = 114 * averageScore /
+                           (Math.Abs(averageScore) + 85);
+            if (echiquier.CoteBlanc)
+            {
+                OptimismBlanc = optimism;
+                OptimismNoir = -optimism;
+            }
+            else
+            {
+                OptimismNoir = optimism;
+                OptimismBlanc = -optimism;
+            }
+        }
+
+        // Ligne "info depth ..." envoyée à l'interface après chaque profondeur
+        private static string ConstruireLigneInfo(Echiquier echiquier, int p, int score, string lignePVGlobal, ContexteRecherche ctxPrincipal,
+                                                  System.Collections.Concurrent.ConcurrentBag<ContexteRecherche> contextesAides, DateTime heureDebut)
+        {
+            TimeSpan duree = DateTime.Now - heureDebut;
+            double secondes = duree.TotalSeconds;
+
+            // En multi-thread (Lazy SMP), le total de nœuds est la somme du thread principal + des threads aides
+            long noeudsTotaux = ctxPrincipal.NombreDeNoeuds;
+            foreach (var ctxAide in contextesAides)
+            {
+                noeudsTotaux += ctxAide.NombreDeNoeuds;
+            }
+
+            // NPS : Basé sur le cumul de tous les nœuds
+            long nps = secondes > 0.001 ? (long)(noeudsTotaux / secondes) : 0;
+            long tempsMs = (long)duree.TotalMilliseconds;
+
+            // Nœuds propres au Negamax (Recherche principale)
+            double hitRate = ctxPrincipal.InterrogationsTT > 0 ? (double)ctxPrincipal.CoupuresTT / ctxPrincipal.InterrogationsTT * 100 : 0;
+            double qHitRate = ctxPrincipal.NoeudsQuiescence > 0 ? (double)ctxPrincipal.CoupuresTTQuiescence / ctxPrincipal.NoeudsQuiescence * 100 : 0;
+
+            string scoreString;
+            // Seuil pour détecter un score de mat (basé dynamiquement sur INFINI)
+            int limiteMat = INFINI - 1000;
+
+            if (Math.Abs(score) > limiteMat)
+            {   // Calcul de la distance du mat en nombre de COUPS (1 coup = 2 demi-coups/plies)
+                // On ajoute 1 pour arrondir correctement la division par 2
+                // On extrait dynamiquement le nombre de plies depuis la constante INFINI
+                int distancePlies = INFINI - Math.Abs(score);
+                int distanceCoups = (distancePlies + 1) / 2;
+
+                // Sécurité pour empêcher l'affichage technique d'un "mate 0" à la racine
+                if (distanceCoups == 0) distanceCoups = 1;
+
+                int signe = (score > 0) ? 1 : -1;
+                scoreString = $"mate {signe * distanceCoups}";
+            }
+            else
+            {
+                int scoreFinal = AppliquerScalingStockfish(echiquier, score);
+                scoreString = $"cp {scoreFinal}";
+            }
+
+            return $"info depth {p} seldepth {ctxPrincipal.ProfondeurMaxAtteinte} score {scoreString} " +
+                   $"nodes {noeudsTotaux} nps {nps} time {tempsMs} " +
+                   $"tthit {hitRate:F1}% qhit {qHitRate:F1}% pv {lignePVGlobal}";
+        }
+
         public static int Negamax(Echiquier e, int profondeur, int distanceRacine, int alpha, int beta, ContexteRecherche? ctx = null)
         {   // Algorithme de recherche principal avec Negamax, Alpha-Beta, Null Move Pruning, LMR, etc.
             
