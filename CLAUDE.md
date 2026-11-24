@@ -11,7 +11,7 @@ Tout le code, les identifiants et les commentaires sont en français : garder ce
 ## Particularités voulues (ne pas les « corriger »)
 
 - Depuis la position initiale, `go` répond tout de suite (profondeur 1, 0 nœud) avec un premier coup qui change d'un lancement à l'autre : c'est voulu, pour varier les parties (artificiel mais plus agréable).
-- La recherche n'est pas reproductible (nœuds du `bench` différents d'un lancement à l'autre) : seul le perft sert de référence de non-régression.
+- La recherche n'est pas reproductible en général (nœuds du `bench` différents d'un lancement à l'autre, premier coup aléatoire depuis la position initiale, threads multiples) : le perft sert de référence pour les coups. Exception, vérifiée le 2026-11-24 : avec `Threads` à 1 et `go depth N` depuis une position FEN (pas la position initiale), les nœuds, le coup et le score sont identiques d'un lancement à l'autre. `Diagnostics\comparer_recherche.ps1 -Dossier <dossier de l'exe> -Profondeur 11` en tire 10 positions : deux versions qui donnent les mêmes lignes ont exactement le même comportement (preuve pour un refactoring), et le total donne les nps (bruit d'environ 5 %).
 
 ## Pratiques (reprises de BrunoGUI_GenII et BrunoGUI_Dames)
 

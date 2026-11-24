@@ -619,26 +619,6 @@ namespace Athos64
                 // 1. On est trop près des feuilles (profondeur < 3)    2. Le coup est le premier de la liste (i == 0)
                 // 3. C'est une capture ou une promotion                4. Le Roi est en échec ou le coup donne échec
                 // ===================================================================================================
-                // Calcule la valeur SEE au besoin si c'est une capture
-                int scoreSEE = 0;
-                if (mouvement.PieceCapturee.HasValue)
-                {   // SÉCURITÉ INDEX : On convertit la pièce en index entier pour validation
-                    int indexPieceAttaquante = (int)mouvement.Piece;
-                    int indexPieceCapturee = (int)mouvement.PieceCapturee.Value;
-
-                    // On s'assure que les pièces sont valides et présentes dans le tableau ValeursMG (0 à 5).
-                    // Si la pièce attaquante est le Roi ou possède un index hors-limite, on utilise une valeur de secours 
-                    // ou la fonction dédiée 'ObtenirValeurPiece(mouvement.Piece)'.
-                    int valA = (indexPieceAttaquante >= 0 && indexPieceAttaquante < 6)
-                        ? EvalParams.ValeursMG[indexPieceAttaquante]
-                        : ObtenirValeurPiece(mouvement.Piece);
-                    int valC = (indexPieceCapturee >= 0 && indexPieceCapturee < 6)
-                        ? EvalParams.ValeursMG[indexPieceCapturee]
-                        : ObtenirValeurPiece(mouvement.PieceCapturee.Value);
-                    // Appel sécurisé au SEE avec les valeurs de pièces validées
-                    scoreSEE = EchangeStatiqueEval.ObtenirSEE(e, mouvement.CaseArrivee, valC, valA);
-                }
-
                 /* 
                 CONDITION LMR : On ne réduit que les coups CALMES (pas de captures, promotions, échecs, ou roi en danger)
                 Au départ, mon LMR réduisait trop de coups, trop tôt et trop fortement.
