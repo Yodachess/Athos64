@@ -39,6 +39,8 @@ namespace Athos64
         public long NoeudsQuiescence { get; set; } = 0;
         public IntPtr Nnue { get; set; } = IntPtr.Zero;     // Contexte NNUE natif (évaluation incrémentale) de ce thread ; IntPtr.Zero = aucun
         public int ProfondeurMaxAtteinte { get; set; } = 0;
+        // Profondeur de recherche réglée par l'option UCI Depth, lue une fois à la création du contexte (limites d'extension et de quiescence)
+        public int ProfondeurReglee { get; } = ProtocoleUCI.ProfondeurDeRecherche;
 
         // Rendre les stats TT locales au contexte
         public long InterrogationsTT { get; set; } = 0;
@@ -670,7 +672,7 @@ namespace Athos64
             bool donneEchec = e.RoiEnEchec(e.CoteBlanc);
 
             // Extension sur échec, sauf si on a déjà trop creusé par rapport à la profondeur demandée
-            int extension = (donneEchec && distanceRacine < ProtocoleUCI.ProfondeurDeRecherche * 2) ? 1 : 0;
+            int extension = (donneEchec && distanceRacine < ctx.ProfondeurReglee * 2) ? 1 : 0;
             int score;
 
             // LMR (Late Move Reduction) pour les coups moins prometteurs.
@@ -1069,7 +1071,7 @@ namespace Athos64
             // Si on a creusé trop loin (ex: +15 plis) ET qu'on n'est pas en échec,
             // on arrête l'explosion tactique et on rend l'évaluation actuelle.
             // Si on est en échec, on continue pour ne pas évaluer une position instable (ou rater un mat).
-            if (!enEchec && distanceRacine > ProtocoleUCI.ProfondeurDeRecherche + 10)
+            if (!enEchec && distanceRacine > ctx.ProfondeurReglee + 10)
             {
                 return BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
             }
