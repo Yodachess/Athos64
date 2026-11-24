@@ -139,7 +139,9 @@ namespace Athos64
 
             // Threads aides (Lazy SMP) : chacun a son échiquier, son contexte de recherche et son contexte NNUE
             var contextesAides = new System.Collections.Concurrent.ConcurrentBag<ContexteRecherche>();
-            Task[] tachesAides = LancerThreadsAides(echiquier, fileDeProfondeurs, contextesAides, gestionTemps);
+            // Les erreurs des threads aides sont notées ici puis envoyées par le thread principal (un seul thread écrit sur la sortie UCI)
+            var erreursAides = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            Task[] tachesAides = LancerThreadsAides(echiquier, fileDeProfondeurs, contextesAides, gestionTemps, erreursAides);
             
             // --- 3. THREAD PRINCIPAL (Thread 0) ---
             DateTime heureDebut = DateTime.Now; // Nécessaire pour le calcul des Noeuds Par Seconde (NPS)
@@ -195,6 +197,9 @@ namespace Athos64
                 }
                 // 2. Attend IMPÉRATIVEMENT que tous les threads aides soient arrêtés
                 Task.WaitAll(tachesAides);
+                // Signale à l'interface les erreurs survenues dans les threads aides (la recherche a continué sans eux)
+                while (erreursAides.TryDequeue(out string? erreurAide))
+                    envoyerInfo?.Invoke(erreurAide);
                 // 3. Libère le contexte NNUE natif du thread principal
                 BrunoNNUE.DetruireContexte(ctxPrincipal.Nnue);
                 ctxPrincipal.Nnue = IntPtr.Zero;
@@ -261,7 +266,8 @@ namespace Athos64
         // qu'il prend dans la file partagée. Il s'arrête quand gestionTemps.DemandeArret passe à true.
         private static Task[] LancerThreadsAides(Echiquier echiquier, System.Collections.Concurrent.ConcurrentQueue<int> fileDeProfondeurs,
                                                  System.Collections.Concurrent.ConcurrentBag<ContexteRecherche> contextesAides,
-                                                 GestionTemps gestionTemps)
+                                                 GestionTemps gestionTemps,
+                                                 System.Collections.Concurrent.ConcurrentQueue<string> erreursAides)
         {
             Task[] tachesAides = new Task[ProtocoleUCI.NombreThreads - 1];
             for (int t = 1; t < NombreThreads; t++)
@@ -292,8 +298,11 @@ namespace Athos64
                         }
                     }
                     catch (ArretRechercheException) { /* Arrêt propre */ }
-                    catch (Exception)
-                    {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale
+                    catch (Exception exception)
+                    {   // Une erreur dans un thread d'aide ne doit pas arrêter la recherche principale : on la note
+                        // (sur une seule ligne) pour que le thread principal l'envoie en "info string"
+                        string message = $"{exception.GetType().Name} : {exception.Message}".Replace('\r', ' ').Replace('\n', ' ');
+                        erreursAides.Enqueue($"info string Erreur dans un thread d'aide : {message}");
                     }
                     finally
                     {
@@ -664,10 +673,23 @@ namespace Athos64
             int extension = (donneEchec && distanceRacine < ProtocoleUCI.ProfondeurDeRecherche * 2) ? 1 : 0;
             int score;
 
-            // LMR (Late Move Reduction) : on ne réduit que les coups CALMES, tardifs (à partir du 5ᵉ), à partir de la profondeur 3.
-            // Jamais une capture, une promotion, un coup tueur, un coup du Roi, ni si le Roi est en échec ou si le coup donne échec.
-            // Un LMR trop agressif (dès le 3ᵉ coup, -3 demi-coups à profondeur 8) faisait rater de bons coups ; il est volontairement
-            // prudent : plus de nœuds visités, mais de meilleurs coups retrouvés.
+            // LMR (Late Move Reduction) pour les coups moins prometteurs.
+            // On ne réduit PAS si :
+            // 1. On est trop près des feuilles (profondeur < 3)    2. Le coup est parmi les premiers de la liste (numeroCoup < 4)
+            // 3. C'est une capture, une promotion, un coup tueur ou un coup du Roi    4. Le Roi est en échec ou le coup donne échec
+            /*
+            CONDITION LMR : On ne réduit que les coups CALMES (pas de captures, promotions, échecs, ou roi en danger)
+            Au départ, mon LMR réduisait trop de coups, trop tôt et trop fortement.
+            Concrètement :      • il s'appliquait dès le 3ᵉ coup (i > 2) ;
+                                • à profondeur 8, il réduisait déjà de 3 demi-coups, ce qui est très agressif.
+            Résultat : certaines variantes intéressantes étaient explorées de façon trop superficielle.
+            À profondeur 8, le moteur passait à côté du meilleur coup et en choisissait même un mauvais.
+            J'ai donc rendu le LMR plus prudent :
+                • il ne s'applique qu'à partir du 6ᵉ coup (i >= 6) ;
+                • la réduction est limitée à 1 ou 2 demi-coups à profondeur 8.
+            Le moteur explore donc davantage les coups prometteurs, retrouve les bons coups... mais en contrepartie il visite plus de nœuds et devient plus lent. C'est le compromis classique du réglage du LMR.
+            (Réglage actuel : à partir du 5ᵉ coup, numeroCoup >= 4 ; voir la condition ci-dessous.)
+            */
             bool estKiller = (distanceRacine < 64) &&
                              (mouvement.Equals(ctx.KillerMoves[distanceRacine, 0]) || mouvement.Equals(ctx.KillerMoves[distanceRacine, 1]));
 
