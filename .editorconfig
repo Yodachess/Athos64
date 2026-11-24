@@ -1,0 +1,29 @@
+# Style de base du dépôt, pour Visual Studio et les autres éditeurs.
+# Les fins de ligne ne sont pas fixées ici : .gitattributes ("text=auto") les normalise.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+# Les scripts PowerShell 5.1 lisent l'ANSI sans BOM : ils gardent le BOM pour les accents
+[*.ps1]
+charset = utf-8-bom
+
+[*.{yml,yaml,csproj,props,targets}]
+indent_size = 2
+
+[*.cs]
+# Les commentaires et le code sont en français, les accolades sur leur propre ligne
+csharp_new_line_before_open_brace = all
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+# Pas de .editorconfig appliqué aux sources de Stockfish
+[BrunoNNUE-SF19/**]
+charset = unset
+indent_style = unset
+indent_size = unset
+insert_final_newline = unset
