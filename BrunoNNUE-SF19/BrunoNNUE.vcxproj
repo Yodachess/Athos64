@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration><ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration></ItemGroup>
+<PropertyGroup Label="Globals"><VCProjectVersion>17.0</VCProjectVersion><Keyword>Win32Proj</Keyword><ProjectGuid>{A7E4F2B9-5E3B-4F41-9C11-6D5C8B4F0E18}</ProjectGuid><RootNamespace>BrunoNNUE</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+<Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+<Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
+<PropertyGroup><OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir><IntDir>$(SolutionDir)obj\$(Platform)\$(Configuration)\</IntDir></PropertyGroup>
+<ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><ClCompile><WarningLevel>Level3</WarningLevel><SDLCheck>true</SDLCheck><PreprocessorDefinitions>BRUNONNUE_EXPORTS;NOMINMAX;USE_POPCNT;USE_AVX2;USE_SSE41;USE_SSSE3;USE_SSE2;%(PreprocessorDefinitions)</PreprocessorDefinitions><ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard><EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet><Optimization>Disabled</Optimization><AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\nnue;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation></Link></ItemDefinitionGroup>
+<ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><ClCompile><WarningLevel>Level3</WarningLevel><SDLCheck>true</SDLCheck><PreprocessorDefinitions>BRUNONNUE_EXPORTS;NDEBUG;NOMINMAX;USE_POPCNT;USE_AVX2;USE_SSE41;USE_SSSE3;USE_SSE2;NO_PREFETCH;%(PreprocessorDefinitions)</PreprocessorDefinitions><ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard><EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet><Optimization>MaxSpeed</Optimization><WholeProgramOptimization>true</WholeProgramOptimization><AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\nnue;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation></Link></ItemDefinitionGroup>
+<ItemGroup>
+<ClCompile Include="src\BrunoNNUE.cpp"/>
+<ClCompile Include="src\bruno_stubs.cpp"/>
+<ClCompile Include="src\attacks.cpp"/>
+<ClCompile Include="src\bitboard.cpp"/>
+<ClCompile Include="src\misc.cpp"/>
+<ClCompile Include="src\movegen.cpp"/>
+<ClCompile Include="src\position.cpp"/>
+<ClCompile Include="src\probe.cpp"/>
+<ClCompile Include="src\nnue\features\full_threats.cpp"/>
+<ClCompile Include="src\nnue\features\half_ka_v2_hm.cpp"/>
+<ClCompile Include="src\nnue\features\pp_3wide.cpp"/>
+<ClCompile Include="src\nnue\network.cpp"/>
+<ClCompile Include="src\nnue\nnue_accumulator.cpp"/>
+<ClCompile Include="src\nnue\nnue_misc.cpp" />
+</ItemGroup><ItemGroup>
+<ClInclude Include="src\BrunoNNUE.h"/>
+<ClInclude Include="src\bitboard.h"/>
+<ClInclude Include="src\engine.h"/>
+<ClInclude Include="src\memory.h"/>
+<ClInclude Include="src\misc.h"/>
+<ClInclude Include="src\movegen.h"/>
+<ClInclude Include="src\nnue\features\full_threats.h"/>
+<ClInclude Include="src\nnue\features\half_ka_v2_hm.h"/>
+<ClInclude Include="src\nnue\layers\affine_transform.h"/>
+<ClInclude Include="src\nnue\layers\affine_transform_sparse_input.h"/>
+<ClInclude Include="src\nnue\layers\clipped_relu.h"/>
+<ClInclude Include="src\nnue\layers\sqr_clipped_relu.h"/>
+<ClInclude Include="src\nnue\network.h"/>
+<ClInclude Include="src\nnue\nnue_accumulator.h"/>
+<ClInclude Include="src\nnue\nnue_architecture.h"/>
+<ClInclude Include="src\nnue\nnue_common.h"/>
+<ClInclude Include="src\nnue\nnue_feature_transformer.h"/>
+<ClInclude Include="src\nnue\nnue_misc.h"/>
+<ClInclude Include="src\nnue\simd.h"/>
+<ClInclude Include="src\position.h"/>
+<ClInclude Include="src\probe.h"/>
+<ClInclude Include="src\score.h"/>
+<ClInclude Include="src\syzygy\tbprobe.h"/>
+<ClInclude Include="src\tt.h"/>
+<ClInclude Include="src\types.h"/>
+<ClInclude Include="src\uci.h"/>
+</ItemGroup><Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
+</Project>

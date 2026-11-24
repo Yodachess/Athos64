@@ -1,0 +1,15 @@
+BrunoNNUE-SF19 : sources de BrunoNNUE.dll (licence GPL-3.0-or-later, comme Stockfish dont le code est repris)
+
+La DLL est construite à partir de https://github.com/VedantJoshi1409/stockfish_nnue_probe,
+mise à niveau avec le code et le réseau de Stockfish 19. Elle donne à Athos64 l'évaluation NNUE.
+
+Fichiers ajoutés ou modifiés pour Athos64 :
+  src\probe.cpp / probe.h   évaluation et contexte incrémental (position + pile d'accumulateurs, un par thread de recherche)
+  src\BrunoNNUE.cpp / .h    fonctions exportées (NNUE_Init, NNUE_Eval*, NNUE_Ctx*)
+  src\bruno_stubs.cpp       éléments de Stockfish nécessaires à la liaison
+
+Construction (Visual Studio 2022, jeu d'outils C++, AVX2) :
+  MSBuild.exe BrunoNNUE.vcxproj /p:Configuration=Release /p:Platform=x64
+  Résultat : bin\x64\Release\BrunoNNUE.dll, à copier à la racine du dépôt (à côté de BrunoNNUE.cs).
+
+Le réseau (nn-1a298aa575a0.nnue, ~98 Mo) n'est pas versionné : il se place à côté de l'exe d'Athos64.
