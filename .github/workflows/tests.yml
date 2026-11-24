@@ -1,0 +1,27 @@
+# Compile Athos64 et lance les tests (perft de référence, SEE, répétitions, règle des 50 coups, Zobrist) à chaque push et pull request.
+# Le résultat apparaît sur GitHub (coche verte ou croix rouge à côté de chaque commit, onglet "Actions").
+# Les tests ne chargent pas le réseau NNUE (98 Mo, non versionné) : ils ne portent que sur les règles et la génération des coups.
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:        # permet aussi de lancer les tests à la main depuis l'onglet "Actions"
+
+jobs:
+  tests:
+    runs-on: windows-latest     # BrunoNNUE.dll est une DLL Windows
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v7
+
+      - name: Installation de .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Compilation
+        run: dotnet build Athos64.sln -c Release -p:Platform=x64
+
+      - name: Tests
+        run: dotnet test Tests -c Release -p:Platform=x64
