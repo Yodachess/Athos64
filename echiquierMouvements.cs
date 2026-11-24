@@ -11,6 +11,8 @@
 // ├─ "GenererCapturesPourBitboard" génère tous les mouvements de capture pour un bitboard donné
 // ├─ "AjouterCaptures" ajoute des mouvements de capture à une liste donnée
 // ├─ "GenererMouvementsLegauxCommun" génère tous les mouvements légaux pour le côté actif
+// │  ├─ "GenererMouvementsBlancs" génère les mouvements légaux des pièces blanches
+// │  └─ "GenererMouvementsNoirs" génère les mouvements légaux des pièces noires
 // ├─ "RoiEnEchec" vérifie si le roi du côté actif est en échec
 // ├─ "EstPat" vérifie si le roi du côté actif est pat  (inutilisé ??)
 // ├─ "CasesAttaqueesPar" retourne un bitboard des cases attaquées par le côté donné
@@ -18,14 +20,8 @@
 // ├─ "AppliquerPromotion" applique une promotion de pion si nécessaire
 // ├─ "RoiEstAttaque" vérifie si le roi du côté actif est attaqué par une pièce ennemie
 // ├─ "ObtenirPieceCapturee" retourne le type de pièce capturée sur une case donnée
-// ├─ "ObtenirPiecesClouees" retourne un bitboard des pièces du camp spécifié qui sont clouées au roi
-// ├─ "DetecterClouageDirection" détecte si une pièce est clouée dans une direction donnée par rapport au roi   
-// ├─ "EstPieceGlissanteValide" vérifie si une pièce glissante (fou, tour, reine) peut attaquer une case donnée.
-// ├─ [Perft] "Perft" effectue un test de performance en comptant tous les mouvements légaux jusqu'à une profondeur donnée
-// ├─ [Perft] "TestPerft" lancement du test à la profondeur donnée ou 5 si pas de profondeur spécifiée
-// ├─ [Perft] "DivisionPerft" effectue un test de performance et affiche le nombre de mouvements pour chaque coup initial
-// ├─ [Perft] "TraduireEnNotationAlgebraique" traduire un mouvement en notation algébrique (ex: e2e4, g1f3, e7e8q)
-// └─ [Perft] "IndiceVersAlgebrique" convertit un indice de case (0-63) en notation algébrique (ex: 0 -> a1, 63 -> h8).
+// ├─ Clouages : voir echiquierClouages.cs ("ObtenirPiecesClouees", "DetecterClouageDirection", "EstPieceGlissanteValide")
+// └─ Perft et notation des coups : voir echiquierPerft.cs
 
 using Athos64;
 using System;
@@ -172,432 +168,441 @@ namespace Athos64
             ulong occupations = ObtenirToutesLesPieces();
             ulong occupationsAmies = CoteBlanc ? ObtenirPiecesBlanches() : ObtenirPiecesNoires();
             ulong occupationsEnnemies = CoteBlanc ? ObtenirPiecesNoires() : ObtenirPiecesBlanches();
-            ulong piecesClouees = ObtenirPiecesClouees(CoteBlanc);
 
             if (CoteBlanc)
-            {   // --- Pions Blancs ---
-                ulong pions = PionsBlancs;
-                while (pions != 0)
+                GenererMouvementsBlancs(mouvements, occupations, occupationsAmies, occupationsEnnemies);
+            else
+                GenererMouvementsNoirs(mouvements, occupations, occupationsAmies, occupationsEnnemies);
+        }
+
+        // Mouvements légaux des pièces blanches (pions, cavaliers, fous, tours, reine, roi avec roques)
+        private void GenererMouvementsBlancs(List<Mouvement> mouvements, ulong occupations, ulong occupationsAmies, ulong occupationsEnnemies)
+        {
+            // --- Pions Blancs ---
+            ulong pions = PionsBlancs;
+            while (pions != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(pions);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+
+                // Mouvements normaux et captures
+                ulong mouvementsPiece = Pion.ObtenirMouvementsBlancs(masqueDepart, occupations, occupationsEnnemies);
+                while (mouvementsPiece != 0)
                 {
-                    int caseDepart = BitOperations.TrailingZeroCount(pions);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-
-                    // Mouvements normaux et captures
-                    ulong mouvementsPiece = Pion.ObtenirMouvementsBlancs(masqueDepart, occupations, occupationsEnnemies);
-                    while (mouvementsPiece != 0)
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
                     {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
+
+                        // 1. Détecter la vraie pièce capturée (important pour la simulation d'échec)
+                        bool estCapture2 = (Bitboard.CaseVersBitboard(caseArrivee) & occupationsEnnemies) != 0;
+                        TypePiece? capture2 = estCapture2 ? ObtenirPieceCapturee(caseArrivee, true) : null;
+
+                        // 2. Gérer la promotion
+                        if ((Bitboard.CaseVersBitboard(caseArrivee) & Bitboard.LignePromotionBlancs) != 0)
                         {
-                            bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                            TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
-
-                            // 1. Détecter la vraie pièce capturée (important pour la simulation d'échec)
-                            bool estCapture2 = (Bitboard.CaseVersBitboard(caseArrivee) & occupationsEnnemies) != 0;
-                            TypePiece? capture2 = estCapture2 ? ObtenirPieceCapturee(caseArrivee, true) : null;
-
-                            // 2. Gérer la promotion
-                            if ((Bitboard.CaseVersBitboard(caseArrivee) & Bitboard.LignePromotionBlancs) != 0)
-                            {
-                                char[] typesPromotion = { 'q', 'r', 'b', 'n' };
-                                foreach (char type in typesPromotion)
-                                {   // On vérifie la légalité pour CHAQUE type de promotion
-                                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc, type))
-                                    {
-                                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture2, type));
-                                    }
-                                }
-                            }
-
-                            // 3. Gérer le mouvement normal (non-promotion)
-                            else
-                            {
-                                if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                            char[] typesPromotion = { 'q', 'r', 'b', 'n' };
+                            foreach (char type in typesPromotion)
+                            {   // On vérifie la légalité pour CHAQUE type de promotion
+                                if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc, type))
                                 {
-                                    mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture2));
+                                    mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture2, type));
                                 }
                             }
                         }
-                        mouvementsPiece &= ~Bitboard.CaseVersBitboard(caseArrivee);
-                    }
 
-                    // Prises en passant
-                    if (CaseEnPassant != -1)
-                    {
-                        ulong prisesEnPassant = Pion.ObtenirPrisesEnPassantBlancs(masqueDepart, CaseEnPassant);
-                        while (prisesEnPassant != 0)
+                        // 3. Gérer le mouvement normal (non-promotion)
+                        else
                         {
-                            int caseArrivee = BitOperations.TrailingZeroCount(prisesEnPassant);
-                            if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc, null, true))
+                            if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
                             {
-                                mouvements.Add(new Mouvement(
-                                    caseDepart,
-                                    caseArrivee,
-                                    TypePiece.Pion,
-                                    TypePiece.Pion,     // capture forcée
-                                    null,
-                                    estPriseEnPassant: true
-                                ));
-                            }
-                            prisesEnPassant &= ~Bitboard.CaseVersBitboard(caseArrivee);
-                        }
-                    }
-                    pions &= ~masqueDepart;
-                }
-
-                // --- Cavaliers Blancs ---
-                ulong cavaliers = CavaliersBlancs;
-                while (cavaliers != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(cavaliers);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Cavalier.ObtenirMouvements(masqueDepart, occupationsAmies);
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        // On détecte le VRAI type de la pièce capturée
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
-                        {
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Cavalier, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-                    cavaliers &= ~masqueDepart;
-                }
-
-                // --- Fous Blancs ---
-                ulong fous = FousBlancs;
-                while (fous != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(fous);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Fou.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
-                        {
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Fou, capture));
-                        }
-                       mouvementsPiece &= ~masqueArrivee;
-                    }
-                    fous &= ~masqueDepart;
-                }
-
-                // --- Tours Blanches ---
-                ulong tours = ToursBlanches;
-                while (tours != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(tours);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Tour.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
-                        {   // On enregistre la Tour avec sa cible réelle
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Tour, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-                    tours &= ~masqueDepart;
-                }
-
-                // --- Reine Blanche ---
-                ulong reine = ReineBlanche;
-                while (reine != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(reine);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Reine.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
-                        {
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Reine, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-                    reine &= ~masqueDepart;
-                }
-
-                // --- Roi Blanc (inclut le roque) ---
-                ulong roi = RoiBlanc;
-                if (roi != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(roi);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong casesAttaquees = CasesAttaqueesPar(false); // Attaques des noirs
-                    // Mouvements normaux du roi
-                    ulong mouvementsPiece = Roi.ObtenirMouvements(masqueDepart, occupationsAmies);
-                    // Filtrage des cases attaquées
-                    mouvementsPiece &= ~casesAttaquees;
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null; // true car ennemi noir
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
-                        {
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Roi, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-
-                    // 2. ROQUE (Version sécurisée)
-                    // Le roque est interdit si le Roi est en échec
-                    if ((masqueDepart & casesAttaquees) == 0)
-                    {   // Petit Roque (O-O)
-                        if (RoqueBlancCoteRoiPossible)
-                        {   // Vérifier cases vides entre Roi et Tour (f1, g1)
-                            // ET vérifier que f1 n'est pas attaquée
-                            bool f1Vide = (occupations & (1UL << 5)) == 0;
-                            bool g1Vide = (occupations & (1UL << 6)) == 0;
-                            bool f1PasAttaquee = (casesAttaquees & (1UL << 5)) == 0;
-                            bool g1PasAttaquee = (casesAttaquees & (1UL << 6)) == 0;
-                            if (f1Vide && g1Vide && f1PasAttaquee && g1PasAttaquee)
-                            {
-                                mouvements.Add(new Mouvement(caseDepart, 6, TypePiece.Roi, null, null, false, estRoque: true));
+                                mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture2));
                             }
                         }
-                        // Grand Roque (O-O-O)
-                        if (RoqueBlancCoteDamePossible)
-                        {   // Vérifier cases vides (d1, c1, b1) 
-                            // ET vérifier que d1 et c1 ne sont pas attaquées
-                            bool d1Vide = (occupations & (1UL << 3)) == 0;
-                            bool c1Vide = (occupations & (1UL << 2)) == 0;
-                            bool b1Vide = (occupations & (1UL << 1)) == 0;
-                            bool d1PasAttaquee = (casesAttaquees & (1UL << 3)) == 0;
-                            bool c1PasAttaquee = (casesAttaquees & (1UL << 2)) == 0;
-                            if (d1Vide && c1Vide && b1Vide && d1PasAttaquee && c1PasAttaquee)
-                            {
-                                mouvements.Add(new Mouvement(caseDepart, 2, TypePiece.Roi, null, null, false, estRoque: true));
-                            }
+                    }
+                    mouvementsPiece &= ~Bitboard.CaseVersBitboard(caseArrivee);
+                }
+
+                // Prises en passant
+                if (CaseEnPassant != -1)
+                {
+                    ulong prisesEnPassant = Pion.ObtenirPrisesEnPassantBlancs(masqueDepart, CaseEnPassant);
+                    while (prisesEnPassant != 0)
+                    {
+                        int caseArrivee = BitOperations.TrailingZeroCount(prisesEnPassant);
+                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc, null, true))
+                        {
+                            mouvements.Add(new Mouvement(
+                                caseDepart,
+                                caseArrivee,
+                                TypePiece.Pion,
+                                TypePiece.Pion,     // capture forcée
+                                null,
+                                estPriseEnPassant: true
+                            ));
+                        }
+                        prisesEnPassant &= ~Bitboard.CaseVersBitboard(caseArrivee);
+                    }
+                }
+                pions &= ~masqueDepart;
+            }
+
+            // --- Cavaliers Blancs ---
+            ulong cavaliers = CavaliersBlancs;
+            while (cavaliers != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(cavaliers);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Cavalier.ObtenirMouvements(masqueDepart, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    // On détecte le VRAI type de la pièce capturée
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                    {
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Cavalier, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                cavaliers &= ~masqueDepart;
+            }
+
+            // --- Fous Blancs ---
+            ulong fous = FousBlancs;
+            while (fous != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(fous);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Fou.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                    {
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Fou, capture));
+                    }
+                   mouvementsPiece &= ~masqueArrivee;
+                }
+                fous &= ~masqueDepart;
+            }
+
+            // --- Tours Blanches ---
+            ulong tours = ToursBlanches;
+            while (tours != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(tours);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Tour.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                    {   // On enregistre la Tour avec sa cible réelle
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Tour, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                tours &= ~masqueDepart;
+            }
+
+            // --- Reine Blanche ---
+            ulong reine = ReineBlanche;
+            while (reine != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(reine);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Reine.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null;
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                    {
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Reine, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                reine &= ~masqueDepart;
+            }
+
+            // --- Roi Blanc (inclut le roque) ---
+            ulong roi = RoiBlanc;
+            if (roi != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(roi);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong casesAttaquees = CasesAttaqueesPar(false); // Attaques des noirs
+                // Mouvements normaux du roi
+                ulong mouvementsPiece = Roi.ObtenirMouvements(masqueDepart, occupationsAmies);
+                // Filtrage des cases attaquées
+                mouvementsPiece &= ~casesAttaquees;
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, true) : null; // true car ennemi noir
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, CoteBlanc))
+                    {
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Roi, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+
+                // 2. ROQUE (Version sécurisée)
+                // Le roque est interdit si le Roi est en échec
+                if ((masqueDepart & casesAttaquees) == 0)
+                {   // Petit Roque (O-O)
+                    if (RoqueBlancCoteRoiPossible)
+                    {   // Vérifier cases vides entre Roi et Tour (f1, g1)
+                        // ET vérifier que f1 n'est pas attaquée
+                        bool f1Vide = (occupations & (1UL << 5)) == 0;
+                        bool g1Vide = (occupations & (1UL << 6)) == 0;
+                        bool f1PasAttaquee = (casesAttaquees & (1UL << 5)) == 0;
+                        bool g1PasAttaquee = (casesAttaquees & (1UL << 6)) == 0;
+                        if (f1Vide && g1Vide && f1PasAttaquee && g1PasAttaquee)
+                        {
+                            mouvements.Add(new Mouvement(caseDepart, 6, TypePiece.Roi, null, null, false, estRoque: true));
+                        }
+                    }
+                    // Grand Roque (O-O-O)
+                    if (RoqueBlancCoteDamePossible)
+                    {   // Vérifier cases vides (d1, c1, b1) 
+                        // ET vérifier que d1 et c1 ne sont pas attaquées
+                        bool d1Vide = (occupations & (1UL << 3)) == 0;
+                        bool c1Vide = (occupations & (1UL << 2)) == 0;
+                        bool b1Vide = (occupations & (1UL << 1)) == 0;
+                        bool d1PasAttaquee = (casesAttaquees & (1UL << 3)) == 0;
+                        bool c1PasAttaquee = (casesAttaquees & (1UL << 2)) == 0;
+                        if (d1Vide && c1Vide && b1Vide && d1PasAttaquee && c1PasAttaquee)
+                        {
+                            mouvements.Add(new Mouvement(caseDepart, 2, TypePiece.Roi, null, null, false, estRoque: true));
                         }
                     }
                 }
             }
-            else        // --- Pièces Noires ---
-            {   // --- Pions Noirs ---
-                ulong pions = PionsNoirs;
-                while (pions != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(pions);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+        }
 
-                    // 1. Mouvements normaux et captures
-                    ulong mouvementsPiece = Pion.ObtenirMouvementsNoirs(masqueDepart, occupations, occupationsEnnemies);
-                    while (mouvementsPiece != 0)
+        // Mouvements légaux des pièces noires (pions, cavaliers, fous, tours, reine, roi avec roques)
+        private void GenererMouvementsNoirs(List<Mouvement> mouvements, ulong occupations, ulong occupationsAmies, ulong occupationsEnnemies)
+        {
+            // --- Pions Noirs ---
+            ulong pions = PionsNoirs;
+            while (pions != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(pions);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+
+                // 1. Mouvements normaux et captures
+                ulong mouvementsPiece = Pion.ObtenirMouvementsNoirs(masqueDepart, occupations, occupationsEnnemies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    // Détection de la vraie pièce capturée pour la simulation
+                    bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
+                    TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, false) : null; // false car l'ennemi est Blanc
+                    // Cas de la Promotion
+                    if ((masqueArrivee & Bitboard.LignePromotionNoirs) != 0)
                     {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        // Détection de la vraie pièce capturée pour la simulation
-                        bool estCapture = (masqueArrivee & occupationsEnnemies) != 0;
-                        TypePiece? capture = estCapture ? ObtenirPieceCapturee(caseArrivee, false) : null; // false car l'ennemi est Blanc
-                        // Cas de la Promotion
-                        if ((masqueArrivee & Bitboard.LignePromotionNoirs) != 0)
+                        char[] typesPromotion = { 'q', 'r', 'b', 'n' };
+                        foreach (char type in typesPromotion)
                         {
-                            char[] typesPromotion = { 'q', 'r', 'b', 'n' };
-                            foreach (char type in typesPromotion)
+                            if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false, type))
                             {
-                                if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false, type))
-                                {
-                                    mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture, type));
-                                }
+                                mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture, type));
                             }
                         }
-                        else
-                        {   // Mouvement normal
-                            if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
-                            {
-                                mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture));
-                            }
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
                     }
-
-                    // 2. Prises en passant
-                    if (CaseEnPassant != -1)
-                    {
-                        ulong prisesEnPassant = Pion.ObtenirPrisesEnPassantNoirs(masqueDepart, CaseEnPassant);
-                        while (prisesEnPassant != 0)
-                        {
-                            int caseArrivee = BitOperations.TrailingZeroCount(prisesEnPassant);
-                            if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false, null, true))
-                            {
-                                mouvements.Add(new Mouvement(
-                                    caseDepart,
-                                    caseArrivee,
-                                    TypePiece.Pion,
-                                    TypePiece.Pion, // Toujours un pion en EP
-                                    null,
-                                    estPriseEnPassant: true
-                                ));
-                            }
-                            prisesEnPassant &= ~Bitboard.CaseVersBitboard(caseArrivee);
-                        }
-                    }
-                    pions &= ~masqueDepart;
-                }
-
-                // --- Cavaliers Noirs ---
-                ulong cavaliers = CavaliersNoirs;
-                while (cavaliers != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(cavaliers);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Cavalier.ObtenirMouvements(masqueDepart, occupationsAmies);
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    else
+                    {   // Mouvement normal
                         if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
                         {
-                            TypePiece piece = TypePiece.Cavalier;
-                            TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
-                                ? ObtenirPieceCapturee(caseArrivee, false) : null;
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, TypePiece.Pion, capture));
                         }
-                        mouvementsPiece &= ~masqueArrivee;
                     }
-                    cavaliers &= ~masqueDepart;
+                    mouvementsPiece &= ~masqueArrivee;
                 }
 
-                // --- Fous Noirs ---
-                ulong fous = FousNoirs;
-                while (fous != 0)
+                // 2. Prises en passant
+                if (CaseEnPassant != -1)
                 {
-                    int caseDepart = BitOperations.TrailingZeroCount(fous);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Fou.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
+                    ulong prisesEnPassant = Pion.ObtenirPrisesEnPassantNoirs(masqueDepart, CaseEnPassant);
+                    while (prisesEnPassant != 0)
                     {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                        int caseArrivee = BitOperations.TrailingZeroCount(prisesEnPassant);
+                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false, null, true))
                         {
-                            TypePiece piece = TypePiece.Fou;
-                            TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
-                                ? ObtenirPieceCapturee(caseArrivee, false) : null;
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                            mouvements.Add(new Mouvement(
+                                caseDepart,
+                                caseArrivee,
+                                TypePiece.Pion,
+                                TypePiece.Pion, // Toujours un pion en EP
+                                null,
+                                estPriseEnPassant: true
+                            ));
                         }
-                        mouvementsPiece &= ~masqueArrivee;
+                        prisesEnPassant &= ~Bitboard.CaseVersBitboard(caseArrivee);
                     }
-                    fous &= ~masqueDepart;
+                }
+                pions &= ~masqueDepart;
+            }
+
+            // --- Cavaliers Noirs ---
+            ulong cavaliers = CavaliersNoirs;
+            while (cavaliers != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(cavaliers);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Cavalier.ObtenirMouvements(masqueDepart, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                    {
+                        TypePiece piece = TypePiece.Cavalier;
+                        TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
+                            ? ObtenirPieceCapturee(caseArrivee, false) : null;
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                cavaliers &= ~masqueDepart;
+            }
+
+            // --- Fous Noirs ---
+            ulong fous = FousNoirs;
+            while (fous != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(fous);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Fou.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                    {
+                        TypePiece piece = TypePiece.Fou;
+                        TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
+                            ? ObtenirPieceCapturee(caseArrivee, false) : null;
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                fous &= ~masqueDepart;
+            }
+
+            // --- Tours Noires ---
+            ulong tours = ToursNoires;
+            while (tours != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(tours);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Tour.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                    {
+                        TypePiece piece = TypePiece.Tour;
+                        TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
+                            ? ObtenirPieceCapturee(caseArrivee, false) : null;
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                tours &= ~masqueDepart;
+            }
+
+            // --- Reine Noire ---
+            ulong reine = ReineNoire;
+            while (reine != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(reine);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong mouvementsPiece = Reine.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                    {
+                        TypePiece piece = TypePiece.Reine;
+                        TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
+                            ? ObtenirPieceCapturee(caseArrivee, false) : null;
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
+                }
+                reine &= ~masqueDepart;
+            }
+
+            // --- Roi Noir (inclut le roque) ---
+            ulong roi = RoiNoir;
+            if (roi != 0)
+            {
+                int caseDepart = BitOperations.TrailingZeroCount(roi);
+                ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+                ulong casesAttaquees = CasesAttaqueesPar(true); // Attaques des Blancs
+                ulong mouvementsPiece = Roi.ObtenirMouvements(masqueDepart, occupationsAmies);
+                mouvementsPiece &= ~casesAttaquees;
+                while (mouvementsPiece != 0)
+                {
+                    int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
+                    ulong masqueArrivee = 1UL << caseArrivee;
+                    if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                    {
+                        TypePiece piece = TypePiece.Roi;
+                        TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
+                            ? ObtenirPieceCapturee(caseArrivee, false) : null;
+                        mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                    }
+                    mouvementsPiece &= ~masqueArrivee;
                 }
 
-                // --- Tours Noires ---
-                ulong tours = ToursNoires;
-                while (tours != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(tours);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Tour.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
+                // 2. ROQUE NOIR
+                // Le roque est strictement interdit si le Roi est actuellement en échec
+                if ((masqueDepart & casesAttaquees) == 0)
+                {   // Petit Roque Noir (O-O) - Cases f8(61) et g8(62)
+                    if (RoqueNoirCoteRoiPossible)
                     {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                        bool f8Vide = (occupations & (1UL << 61)) == 0;
+                        bool g8Vide = (occupations & (1UL << 62)) == 0;
+                        bool f8PasAttaquee = (casesAttaquees & (1UL << 61)) == 0;
+                        bool g8PasAttaquee = (casesAttaquees & (1UL << 62)) == 0;
+                        if (f8Vide && g8Vide && f8PasAttaquee && g8PasAttaquee)
                         {
-                            TypePiece piece = TypePiece.Tour;
-                            TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
-                                ? ObtenirPieceCapturee(caseArrivee, false) : null;
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
+                            mouvements.Add(new Mouvement(caseDepart, 62, TypePiece.Roi, null, null, false, estRoque: true));
                         }
-                        mouvementsPiece &= ~masqueArrivee;
                     }
-                    tours &= ~masqueDepart;
-                }
-
-                // --- Reine Noire ---
-                ulong reine = ReineNoire;
-                while (reine != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(reine);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong mouvementsPiece = Reine.ObtenirMouvements(masqueDepart, occupations, occupationsAmies);
-                    while (mouvementsPiece != 0)
+                    // Grand Roque Noir (O-O-O) - Cases d8(59), c8(58), b8(57)
+                    if (RoqueNoirCoteDamePossible)
                     {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
+                        bool d8Vide = (occupations & (1UL << 59)) == 0;
+                        bool c8Vide = (occupations & (1UL << 58)) == 0;
+                        bool b8Vide = (occupations & (1UL << 57)) == 0;
+                        bool d8PasAttaquee = (casesAttaquees & (1UL << 59)) == 0;
+                        bool c8PasAttaquee = (casesAttaquees & (1UL << 58)) == 0;
+                        // Note : b8 doit être vide, mais n'a pas besoin d'être à l'abri des attaques
+                        if (d8Vide && c8Vide && b8Vide && d8PasAttaquee && c8PasAttaquee)
                         {
-                            TypePiece piece = TypePiece.Reine;
-                            TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
-                                ? ObtenirPieceCapturee(caseArrivee, false) : null;
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-                    reine &= ~masqueDepart;
-                }
-
-                // --- Roi Noir (inclut le roque) ---
-                ulong roi = RoiNoir;
-                if (roi != 0)
-                {
-                    int caseDepart = BitOperations.TrailingZeroCount(roi);
-                    ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
-                    ulong casesAttaquees = CasesAttaqueesPar(true); // Attaques des Blancs
-                    ulong mouvementsPiece = Roi.ObtenirMouvements(masqueDepart, occupationsAmies);
-                    mouvementsPiece &= ~casesAttaquees;
-                    while (mouvementsPiece != 0)
-                    {
-                        int caseArrivee = BitOperations.TrailingZeroCount(mouvementsPiece);
-                        ulong masqueArrivee = 1UL << caseArrivee;
-                        if (!RoiEnEchecApresCoup(caseDepart, caseArrivee, false))
-                        {
-                            TypePiece piece = TypePiece.Roi;
-                            TypePiece? capture = (masqueArrivee & occupationsEnnemies) != 0
-                                ? ObtenirPieceCapturee(caseArrivee, false) : null;
-                            mouvements.Add(new Mouvement(caseDepart, caseArrivee, piece, capture));
-                        }
-                        mouvementsPiece &= ~masqueArrivee;
-                    }
-
-                    // 2. ROQUE NOIR
-                    // Le roque est strictement interdit si le Roi est actuellement en échec
-                    if ((masqueDepart & casesAttaquees) == 0)
-                    {   // Petit Roque Noir (O-O) - Cases f8(61) et g8(62)
-                        if (RoqueNoirCoteRoiPossible)
-                        {
-                            bool f8Vide = (occupations & (1UL << 61)) == 0;
-                            bool g8Vide = (occupations & (1UL << 62)) == 0;
-                            bool f8PasAttaquee = (casesAttaquees & (1UL << 61)) == 0;
-                            bool g8PasAttaquee = (casesAttaquees & (1UL << 62)) == 0;
-                            if (f8Vide && g8Vide && f8PasAttaquee && g8PasAttaquee)
-                            {
-                                mouvements.Add(new Mouvement(caseDepart, 62, TypePiece.Roi, null, null, false, estRoque: true));
-                            }
-                        }
-                        // Grand Roque Noir (O-O-O) - Cases d8(59), c8(58), b8(57)
-                        if (RoqueNoirCoteDamePossible)
-                        {
-                            bool d8Vide = (occupations & (1UL << 59)) == 0;
-                            bool c8Vide = (occupations & (1UL << 58)) == 0;
-                            bool b8Vide = (occupations & (1UL << 57)) == 0;
-                            bool d8PasAttaquee = (casesAttaquees & (1UL << 59)) == 0;
-                            bool c8PasAttaquee = (casesAttaquees & (1UL << 58)) == 0;
-                            // Note : b8 doit être vide, mais n'a pas besoin d'être à l'abri des attaques
-                            if (d8Vide && c8Vide && b8Vide && d8PasAttaquee && c8PasAttaquee)
-                            {
-                                mouvements.Add(new Mouvement(caseDepart, 58, TypePiece.Roi, null, null, false, estRoque: true));
-                            }
+                            mouvements.Add(new Mouvement(caseDepart, 58, TypePiece.Roi, null, null, false, estRoque: true));
                         }
                     }
                 }
@@ -762,184 +767,6 @@ namespace Athos64
                 if ((RoiBlanc & m) != 0) return TypePiece.Roi;
             }
             return null;
-        }
-
-        #region Clouages
-        public ulong ObtenirPiecesClouees(bool coteBlanc)
-        {   // Retourne un bitboard des pièces du camp spécifié qui sont clouées au roi.
-            ulong roi = coteBlanc ? RoiBlanc : RoiNoir;
-            ulong piecesAmies = coteBlanc ? ObtenirPiecesBlanches() : ObtenirPiecesNoires();
-            ulong piecesEnnemies = coteBlanc ? ObtenirPiecesNoires() : ObtenirPiecesBlanches();
-
-            int caseRoi = BitOperations.TrailingZeroCount(roi);
-            ulong clouees = 0UL;
-            int[] directions = [8, -8, 1, -1, 9, -9, 7, -7];
-
-            foreach (int dir in directions)
-            {
-                clouees |= DetecterClouageDirection(caseRoi, dir, piecesAmies, piecesEnnemies, coteBlanc);
-            }
-
-            return clouees;
-        }
-        private ulong DetecterClouageDirection(int caseRoi, int dir, ulong piecesAmies, ulong piecesEnnemies, bool coteBlanc)
-        {   // Parcourt la direction spécifiée à partir du roi pour détecter une pièce clouée.
-            int caseActuelle = caseRoi;
-            ulong pieceCandidate = 0UL;
-
-            while (true)
-            {
-                int suivante = caseActuelle + dir;
-
-                if (suivante < 0 || suivante >= 64)
-                    break;
-
-                // anti-wrap
-                if (dir == 1 || dir == -1 || dir == 7 || dir == -7 || dir == 9 || dir == -9)
-                {
-                    int colActuelle = caseActuelle % 8;
-                    int colSuivante = suivante % 8;
-
-                    if (Math.Abs(colSuivante - colActuelle) > 1)
-                        break;
-                }
-
-                ulong masque = 1UL << suivante;
-
-                // pièce amie
-                if ((masque & piecesAmies) != 0)
-                {
-                    if (pieceCandidate != 0)
-                        break;
-
-                    pieceCandidate = masque;
-                }
-                // pièce ennemie
-                else if ((masque & piecesEnnemies) != 0)
-                {
-                    if (pieceCandidate == 0)
-                        break;
-
-                    if (EstPieceGlissanteValide(masque, dir, coteBlanc))
-                        return pieceCandidate;
-
-                    break;
-                }
-
-                caseActuelle = suivante;
-            }
-
-            return 0UL;
-        }
-        private bool EstPieceGlissanteValide(ulong piece, int dir, bool coteBlanc)
-        {   // Vérifie si la pièce ennemie rencontrée est un fou, une tour ou une reine qui peut clouer dans cette direction.
-            ulong fous = coteBlanc ? FousNoirs : FousBlancs;
-            ulong tours = coteBlanc ? ToursNoires : ToursBlanches;
-            ulong reines = coteBlanc ? ReineNoire : ReineBlanche;
-
-            bool diagonal = (dir == 7 || dir == -7 || dir == 9 || dir == -9);
-            bool orthogonal = (dir == 1 || dir == -1 || dir == 8 || dir == -8);
-
-            if (diagonal && ((piece & (fous | reines)) != 0))
-                return true;
-
-            if (orthogonal && ((piece & (tours | reines)) != 0))
-                return true;
-
-            return false;
-        }
-        #endregion
-
-        // ******************************************
-        // Perft : compte le nombre de positions atteignables à une profondeur donnée.
-        // https://www.chessprogramming.org/Perft_Results
-        public ulong Perft(int profondeur)
-        {
-            if (profondeur == 0)
-                return 1;
-
-            ulong noeuds = 0;
-
-            // On crée une liste locale pour cet étage de profondeur
-            List<Mouvement> coups = new List<Mouvement>(100);
-            GenererMouvementsLegauxCommun(coups); // On remplit la liste
-
-            foreach (var coup in coups)
-            {
-                var etat = SauvegarderEtat();
-                JouerCoup(coup.CaseDepart, coup.CaseArrivee, coup.Promotion);
-
-                if (!RoiEnEchec(!CoteBlanc))
-                {   // On vérifie si le roi de celui qui vient de jouer est en échec
-                    noeuds += Perft(profondeur - 1);
-                }
-                RestaurerEtat(etat);
-            }
-            return noeuds;
-        }
-        public void TestPerft(List<string> jetons)
-        {   // On extrait la profondeur : on regarde le jeton 1 (ex: "perft 5")
-            // Si pas de jeton, on prend 5 par défaut.
-            int profondeur = (jetons.Count > 1 && int.TryParse(jetons[1], out int p)) ? p : 5;
-
-            Console.WriteLine($"--- Lancement Perft jusqu'à profondeur {profondeur} ---");
-
-            for (int i = 1; i <= profondeur; i++)
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-                ulong noeuds = Perft(i);
-                sw.Stop();
-
-                double secondes = sw.Elapsed.TotalSeconds;
-                double nps = secondes > 0 ? noeuds / secondes : 0;
-
-                Console.WriteLine($"Depth {i} = {noeuds} | Temps: {secondes:F3}s | NPS: {nps:N0}");
-            }
-        }
-        public void DivisionPerft(int profondeur)
-        {
-            Console.WriteLine($"--- Division Perft (Profondeur {profondeur}) ---");
-            ulong totalNoeuds = 0;
-
-            // Même logique : on prépare la liste
-            List<Mouvement> coups = new List<Mouvement>(100);
-            GenererMouvementsLegauxCommun(coups);
-
-            foreach (var coup in coups)
-            {
-                var etat = SauvegarderEtat();
-                JouerCoup(coup.CaseDepart, coup.CaseArrivee, coup.Promotion);
-
-                if (!RoiEnEchec(!CoteBlanc))
-                {
-                    ulong noeudsBranche = Perft(profondeur - 1);
-                    totalNoeuds += noeudsBranche;
-                    // Affichage du coup (ex: e2e4) et du nombre de sous-noeuds
-                    string notationCoup = IndiceVersAlgebrique(coup.CaseDepart) + IndiceVersAlgebrique(coup.CaseArrivee);
-                    Console.WriteLine($"{notationCoup}: {noeudsBranche}");
-                }
-                RestaurerEtat(etat);
-            }
-            Console.WriteLine($"\nTotal noeuds : {totalNoeuds}");
-            Console.WriteLine("----------------------------------\n");
-        }
-        public string TraduireEnNotationAlgebraique(Mouvement m)
-        {   // Si le mouvement est nul ou vide
-            if (m.CaseDepart == 0 && m.CaseArrivee == 0) return "aucun";
- 
-            string depart = IndiceVersAlgebrique(m.CaseDepart);
-            string arrivee = IndiceVersAlgebrique(m.CaseArrivee);
-            // On ajoute la promotion si elle existe (ex: e7e8q)
-            string promo = m.Promotion.HasValue ? m.Promotion.Value.ToString() : "";
-
-            return depart + arrivee + promo;
-        }
-
-        public string IndiceVersAlgebrique(int indice)
-        {
-            int colonne = indice % 8;
-            int rangee = indice / 8;
-            return $"{(char)('a' + colonne)}{rangee + 1}";
         }
     }
 }
