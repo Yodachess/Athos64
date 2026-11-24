@@ -1080,10 +1080,6 @@ namespace Athos64
             if (SonderTableQuiescence(ctx, e, distanceRacine, ref alpha, ref beta, out EntreeTT? entree, out int scoreTT))
                 return scoreTT;
 
-            // On ne s'autorise à parer l'échec (générer les coups calmes) que si on vient d'entrer en Quiescence (ex: pendant 2 plis max)
-            // Au-delà, si la tempête d'échecs continue, on considère la position comme trop instable et on passe à l'évaluation statique.
-            // bool enEchec = (distanceRacine - ProtocoleUCI.ProfondeurDeRecherche < 2) && e.RoiEnEchec(e.CoteBlanc);
-
             // On suit la profondeur réelle (pour voir si ça dépasse 6)
             if (distanceRacine > ctx.ProfondeurMaxAtteinte) ctx.ProfondeurMaxAtteinte = distanceRacine;
 
