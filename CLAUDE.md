@@ -32,7 +32,7 @@ Tout le code, les identifiants et les commentaires sont en français : garder ce
 ## À vérifier avec Bruno
 
 - Migration vers `net10.0` faite le 2026-11-23 (`net8.0` n'est plus pris en charge depuis le 2026-11-10) : Visual Studio 2026 requis, VS 2022 ne prend pas en charge `net10.0`.
-- CI GitHub ajoutée le 2026-11-24 (`.github\workflows\tests.yml` : compilation et `dotnet test Tests` à chaque push, sans le réseau NNUE). Le dépôt n'a pas de `Directory.Build.props` : à ajouter plus tard si Bruno le veut, sur le modèle des deux autres projets.
+- CI GitHub ajoutée le 2026-11-24 (`.github\workflows\tests.yml` : compilation et `dotnet test Tests` à chaque push, sans le réseau NNUE). `Directory.Build.props` (2026-11-24) transforme les avertissements en erreurs (sauf les alertes de sécurité NuGet NU1901 à NU1904) : un avertissement fait échouer la compilation et la CI. `.editorconfig` fixe l'encodage, l'indentation et le style des accolades, pas les fins de ligne (`.gitattributes`).
 - `gh` n'est pas installé : pour lire le résultat de la CI, interroger l'API publique `https://api.github.com/repos/Yodachess/Athos64/actions/runs` (`Invoke-RestMethod`).
 
 ## Commandes
