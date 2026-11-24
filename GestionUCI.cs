@@ -5,7 +5,7 @@
 // █ See the LICENSE file in the project root for full license information. █
 // └▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀┘
 
-// Contient les focntions pour manipuler l'échiquier
+// Contient les fonctions pour manipuler l'échiquier
 // ├─ Constructeur statique "ProtocoleUCI" pour initialiser le protocole UCI
 // ├─ _profondeur = x;  -> Profondeur de recherche par défaut
 // └─ Classe "ProtocoleUCI"  
@@ -19,12 +19,12 @@
 //                  ├─ "SurveillerFile"
 //                  ├─ "UCI"
 //                  ├─ "DefinirOption"
-//                  ├─ "NouvellePartieUci"
-//                  ├─ "Positionner"
-//                  ├─ "AllerAsynchrone"
-//                  ├─ "CreerMouvementDepuisUCI"
-//                  ├─ "ConvertirCoupUCI"
-//                  ├─ "Stopper"
+//                  ├─ "NouvellePartieUci"   -> GestionUCIPosition.cs
+//                  ├─ "Positionner"   -> GestionUCIPosition.cs
+//                  ├─ "AllerAsynchrone"   -> GestionUCIGo.cs
+//                  ├─ "CreerMouvementDepuisUCI"   -> GestionUCIPosition.cs
+//                  ├─ "ConvertirCoupUCI"   -> GestionUCIPosition.cs
+//                  ├─ "Stopper"   -> GestionUCIGo.cs
 //                  └─ "Quitter"
 // └─ Classe "Jetons"  (pour séparer une commande UCI en "jetons")
 //                  └─ "Parser"
@@ -39,7 +39,7 @@ using static Athos64.Echiquier;
 
 namespace Athos64
 {
-    public sealed class ProtocoleUCI : IDisposable
+    public sealed partial class ProtocoleUCI : IDisposable
     {   // Classe pour gérer le protocole UCI (Universal Chess Interface) 
         public const long NoeudsIntervalInfo = 1_000_000;
         public const long NoeudsIntervalTemps = 1_000;
@@ -280,119 +280,7 @@ namespace Athos64
                 GérerException(ex);
             }
         }
-        private void AllerAsynchrone(List<string> jetons)
-        {   // Traite la commande "go" sur le thread asynchrone
-            int profondeur = ProfondeurDeRecherche;
-            var gestionTemps = new GestionTemps();
-            int wtime = -1;
-            int btime = -1;
-            int winc = 0;
-            int binc = 0;
-            int movestogo = 0;
 
-            for (int i = 1; i < jetons.Count; i++)
-            {   // 1. On parcourt les jetons pour extraire les paramètres de la commande "go"
-                string jeton = jetons[i].ToLower();
-
-                if (jeton == "infinite")
-                {   // Si le mode "infinite" est demandé, on démarre la recherche infinie
-                    gestionTemps.DemarrerInfini();
-                    continue;
-                }
-                if (i + 1 >= jetons.Count)  // On s'assure qu'il y a un argument après le jeton actuel
-                    continue;
-                switch (jeton)
-                {
-                    case "depth":
-                        if (int.TryParse(jetons[++i], out int p))
-                            profondeur = p;
-                        break;
-                    case "movetime":
-                        if (int.TryParse(jetons[++i], out int t))
-                            gestionTemps.Demarrer(t);
-                        break;
-                    case "wtime":
-                        int.TryParse(jetons[++i], out wtime);
-                        break;
-                    case "btime":
-                        int.TryParse(jetons[++i], out btime);
-                        break;
-                    case "winc":
-                        int.TryParse(jetons[++i], out winc);
-                        break;
-                    case "binc":
-                        int.TryParse(jetons[++i], out binc);
-                        break;
-                    case "movestogo":
-                        int.TryParse(jetons[++i], out movestogo);
-                        break;
-                }
-            }
-
-            // Si aucun movetime n'a été donné mais qu'on dispose du temps restant
-            if (wtime >= 0 && btime >= 0)
-            {
-                int tempsRestant = _echiquier.CoteBlanc ? wtime : btime;
-                int increment = _echiquier.CoteBlanc ? winc : binc;
-
-                int tempsPourCeCoup;
-
-                if (movestogo > 0)
-                {   // Contrôle du type "40 coups en 2 heures"
-                    tempsPourCeCoup = tempsRestant / movestogo;
-                }
-                else
-                {   // Contrôle Fischer
-                    if (tempsRestant > 300000)          // > 5 min
-                        tempsPourCeCoup = tempsRestant / 20;
-                    else if (tempsRestant > 60000)      // > 1 min
-                        tempsPourCeCoup = tempsRestant / 25;
-                    else if (tempsRestant > 10000)      // > 10 s
-                        tempsPourCeCoup = tempsRestant / 30;
-                    else
-                        tempsPourCeCoup = tempsRestant / 40;
-                }
-
-                // On profite presque entièrement de l'incrément
-                tempsPourCeCoup += increment * 8 / 10;
-
-                // Toujours conserver un peu de temps
-                tempsPourCeCoup = Math.Min(tempsPourCeCoup, tempsRestant - 100);
-
-                // Minimum
-                tempsPourCeCoup = Math.Max(20, tempsPourCeCoup);
-
-                gestionTemps.Demarrer(tempsPourCeCoup);
-                _fluxUCI.EcrireDebug($"Temps restant={tempsRestant}  incr={increment}  alloué={tempsPourCeCoup}");
-            }
-
-            _fluxUCI.EcrireDebug($"Lancement recherche profondeur: {profondeur}");
-
-            // 3. Recherche avec récupération du tuple
-            // Affichage du bestmove final (seul endroit autorisé à le faire)
-            var resultatRecherche = Recherche.Chercher(_echiquier, profondeur, gestionTemps, (info) => _fluxUCI.EcrireLigne(info));
-            string pvTexte = resultatRecherche.LignePV ?? "";
-            string[] coupsPV = pvTexte.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (coupsPV.Length >= 2)
-            {
-                _fluxUCI.EcrireLigne($"bestmove {coupsPV[0]} ponder {coupsPV[1]}");
-            }
-            else if (coupsPV.Length == 1)
-            {
-                _fluxUCI.EcrireLigne($"bestmove {coupsPV[0]}");
-            }
-            else if (resultatRecherche.MeilleurCoup.HasValue)
-            {
-                string coupTxt = _echiquier.TraduireEnNotationAlgebraique(resultatRecherche.MeilleurCoup.Value);
-                _fluxUCI.EcrireLigne($"bestmove {coupTxt}");
-            }
-            else
-            {
-                _fluxUCI.EcrireLigne("bestmove (none)");
-            }
-            GC.Collect(1, GCCollectionMode.Forced, false);
-        }
         private void Uci()
         {   // Envoie les informations d'identification du moteur d'échecs au protocole UCI
             var version = "V 1.30 NNUE_SF19";
@@ -467,137 +355,6 @@ namespace Athos64
                     break;
             }
         }
-        private void NouvellePartieUci()
-        {
-            try
-            {
-                    Recherche.ReinitialiserMoteur(Recherche.TT);
-                    _echiquier.InitialiserPositionDeDepart();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"info string Erreur nouvelle partie: {ex.Message}");
-            }
-        }
-        private void Positionner(List<string> jetons)
-        {
-            if (jetons.Count < 2)
-            {   // Validation de base : la commande doit avoir au moins "position startpos" ou "position fen ..."
-                _fluxUCI.EcrireLigne("info string [ERREUR] Syntaxe invalide. Usage: position [startpos | fen <fen>] [moves <coups>]");
-                return;
-            }
-            var specifierCoups = false;
-            var indexCoup = jetons.Count;
-            for (var i = 1; i < jetons.Count; i++)
-            {   // Recherche du mot-clé "moves"
-                if (string.Equals(jetons[i], "moves", StringComparison.OrdinalIgnoreCase))
-                {
-                    specifierCoups = true;
-                    indexCoup = i + 1;
-                    break;
-                }
-            }
-            string fen;     // 3. Détermination de la position initiale (FEN)
-            if (jetons[1].Equals("startpos", StringComparison.OrdinalIgnoreCase))
-            {
-                fen = Echiquier.FenDepart;
-            }
-            else if (jetons[1].Equals("fen", StringComparison.OrdinalIgnoreCase))
-            {   // On récupère tout ce qui est entre "fen" et "moves" (si présent)
-                int finFen = specifierCoups ? jetons.IndexOf("moves") : jetons.Count;
-                if (finFen <= 2)
-                {
-                    _fluxUCI.EcrireLigne("info string [ERREUR] FEN manquante après mot-clé 'fen'.");
-                    return;
-                }
-                fen = string.Join(" ", jetons.GetRange(2, finFen - 2));
-            }
-            else
-            {
-                _fluxUCI.EcrireLigne($"info string [ERREUR] Argument inconnu : {jetons[1]}");
-                return;
-            }
-
-            try
-            {   // 4. Chargement de l'échiquier
-                ChargementFen.ChargerFen(_echiquier, fen, false);
-                _echiquier.CleActuelle = _echiquier.CalculerCleComplete();
-            }
-            catch (Exception ex)
-            {
-                _fluxUCI.EcrireLigne($"info string [ERREUR] Chargement FEN échoué : {ex.Message}");
-                return;
-            }
-
-            // Jeu des coups (si "moves" trouvé)
-            while (indexCoup < jetons.Count)
-            {
-                var coupUCI = jetons[indexCoup];
-                try
-                {
-                    var coupVoulu = CreerMouvementDepuisUCI(coupUCI, _echiquier);
-                    List<Mouvement> coupsLegaux = [];
-                    _echiquier.GenererMouvementsLegauxCommun(coupsLegaux);
-
-                    var coupTrouvé = coupsLegaux.FirstOrDefault(c =>
-                        c.CaseDepart == coupVoulu.CaseDepart &&
-                        c.CaseArrivee == coupVoulu.CaseArrivee &&
-                        char.ToLower(c.Promotion ?? ' ') == char.ToLower(coupVoulu.Promotion ?? ' '));
-
-                    // Si le coup n'est pas trouvé (Vérification par défaut de struct)
-                    if (coupTrouvé.CaseDepart == 0 && coupTrouvé.CaseArrivee == 0)
-                    {
-                        _fluxUCI.EcrireLigne($"info string [ERREUR] Coup {coupUCI} illégal.");
-                        break;
-                    }
-                    _echiquier.JouerCoup(coupTrouvé.CaseDepart, coupTrouvé.CaseArrivee, coupTrouvé.Promotion);
-                }
-                catch (Exception ex)
-                {
-                    _fluxUCI.EcrireLigne($"info string [ERREUR] Parsing coup {coupUCI} impossible : {ex.Message}");
-                    break;
-                }
-                indexCoup++;
-            }
-            // _echiquier.Afficher(); // Utile pour le debug console
-            // Je remplace par la commande d qui affiche l'échiquier dans la console
-        }
-
-        public static Mouvement CreerMouvementDepuisUCI(string uciCoup, Echiquier echiquier)
-        {
-            // 1. Conversion des cases via la classe Bitboard (uciCoup est par exemple "e2e4" ou "a7a8q")
-            int de = Bitboard.CaseVersIndex(uciCoup.Substring(0, 2));
-            int vers = Bitboard.CaseVersIndex(uciCoup.Substring(2, 2));
-
-            // 2. Identifier la pièce qui bouge (utilise la méthode IdentifierTypePiece)
-            Echiquier.TypePiece piece = echiquier.IdentifierTypePiece(de);
-
-            // 3. Gérer la promotion (le 5ème caractère, s'il existe)
-            char? promotion = uciCoup.Length == 5 ? uciCoup[4] : null;
-
-            // 4. Identifier une éventuelle capture (On vérifie si la case d'arrivée est occupée)
-            Echiquier.TypePiece? pieceCapturee = null;
-            if ((echiquier.ObtenirToutesLesPieces() & Bitboard.CaseVersBitboard(vers)) != 0)
-            {
-                pieceCapturee = echiquier.IdentifierTypePiece(vers);
-            }
-
-            // 5. Détecter le roque (Si le roi se déplace de 2 cases horizontalement)
-            bool estRoque = (piece == Echiquier.TypePiece.Roi) && Math.Abs(de % 8 - vers % 8) == 2;
-
-            // 6. Détecter la prise en passant (Si c'est un pion qui change de colonne vers une case vide)
-            bool estEP = (piece == Echiquier.TypePiece.Pion) && (de % 8 != vers % 8) && (pieceCapturee == null);
-
-            // Retourne l'objet Mouvement avec toutes les infos
-            return new Mouvement(de, vers, piece, pieceCapturee, promotion, estEP, estRoque);
-        }
-        public static string ConvertirMouvementEnUCI(Mouvement m)
-        {
-            string de = Bitboard.IndexVersCase(m.CaseDepart);
-            string vers = Bitboard.IndexVersCase(m.CaseArrivee);
-            string promo = m.Promotion.HasValue ? m.Promotion.Value.ToString().ToLower() : "";
-            return de + vers + promo;
-        }
 		public static void PerfBench(List<string> commande)
 		{   // Par défaut profondeur 6
 			int profondeur = 6;
@@ -608,15 +365,6 @@ namespace Athos64
 			}
 			Performance.Executer(profondeur);
 		}
-        private  static void Stopper()
-        {   // On force l'exception via l'instance de GestionTemps en cours
-            Recherche.GestionTempsEnCours?.DemanderArret();
-        }
-        private static void Ponderhit()
-        {   // On signale au gestionnaire de temps que le coup attendu a été joué.
-            // Cela transforme la recherche infinie (pondering) en recherche limitée dans le temps.
-            Recherche.GestionTempsEnCours?.SignalerPonderhit();
-        }
         private static void Quitter(int codeSortie) => Environment.Exit(codeSortie);
     }
     public static class Jetons
