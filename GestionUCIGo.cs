@@ -20,9 +20,14 @@ namespace Athos64
 {
     public sealed partial class ProtocoleUCI
     {
+        // Profondeur maximale d'une recherche limitée par le temps (et d'un "go depth N")
+        private const int PROFONDEUR_MAX_TEMPS = 64;
+
         private void AllerAsynchrone(List<string> jetons)
         {   // Traite la commande "go" sur le thread asynchrone
             int profondeur = ProfondeurDeRecherche;
+            bool profondeurDonnee = false;      // "go depth N" reçu
+            bool limiteDeTemps = false;         // wtime/btime, movetime ou infinite reçu : c'est le temps qui arrête la recherche
             var gestionTemps = new GestionTemps();
             int wtime = -1;
             int btime = -1;
@@ -37,6 +42,7 @@ namespace Athos64
                 if (jeton == "infinite")
                 {   // Si le mode "infinite" est demandé, on démarre la recherche infinie
                     gestionTemps.DemarrerInfini();
+                    limiteDeTemps = true;
                     continue;
                 }
                 if (i + 1 >= jetons.Count)  // On s'assure qu'il y a un argument après le jeton actuel
@@ -45,11 +51,17 @@ namespace Athos64
                 {
                     case "depth":
                         if (int.TryParse(jetons[++i], out int p))
-                            profondeur = p;
+                        {
+                            profondeur = Math.Clamp(p, 1, PROFONDEUR_MAX_TEMPS);
+                            profondeurDonnee = true;
+                        }
                         break;
                     case "movetime":
                         if (int.TryParse(jetons[++i], out int t))
+                        {
                             gestionTemps.Demarrer(t);
+                            limiteDeTemps = true;
+                        }
                         break;
                     case "wtime":
                         int.TryParse(jetons[++i], out wtime);
@@ -77,8 +89,14 @@ namespace Athos64
                 int tempsPourCeCoup = CalculerTempsPourCeCoup(tempsRestant, increment, movestogo);
 
                 gestionTemps.Demarrer(tempsPourCeCoup);
+                limiteDeTemps = true;
                 _fluxUCI.EcrireDebug($"Temps restant={tempsRestant}  incr={increment}  alloué={tempsPourCeCoup}");
             }
+
+            // Avec une limite de temps et sans "go depth", l'option Depth ne bride plus la recherche (2026-11-25) :
+            // elle s'arrêtait à 12 demi-coups même s'il restait du temps (parties longues, finales)
+            if (limiteDeTemps && !profondeurDonnee)
+                profondeur = PROFONDEUR_MAX_TEMPS;
 
             _fluxUCI.EcrireDebug($"Lancement recherche profondeur: {profondeur}");
 

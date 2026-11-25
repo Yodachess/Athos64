@@ -39,8 +39,9 @@ namespace Athos64
         public long NoeudsQuiescence { get; set; } = 0;
         public IntPtr Nnue { get; set; } = IntPtr.Zero;     // Contexte NNUE natif (évaluation incrémentale) de ce thread ; IntPtr.Zero = aucun
         public int ProfondeurMaxAtteinte { get; set; } = 0;
-        // Profondeur de recherche réglée par l'option UCI Depth, lue une fois à la création du contexte (limites d'extension et de quiescence)
-        public int ProfondeurReglee { get; } = ProtocoleUCI.ProfondeurDeRecherche;
+        // Profondeur de référence des limites d'extension et de quiescence : la profondeur demandée au "go", au plus 20
+        // (fixée par Chercher ; 20 est la valeur validée en match, une recherche au temps demande jusqu'à 64)
+        public int ProfondeurReglee { get; set; } = ProtocoleUCI.ProfondeurDeRecherche;
 
         // Rendre les stats TT locales au contexte
         public long InterrogationsTT { get; set; } = 0;
@@ -122,7 +123,8 @@ namespace Athos64
             // ======================================================================
 
             // --- INITIALISATION DU CONTEXTE PRINCIPAL ---
-            var ctxPrincipal = new ContexteRecherche();
+            int profondeurReglee = Math.Min(profondeurMax, 20);
+            var ctxPrincipal = new ContexteRecherche { ProfondeurReglee = profondeurReglee };
             DernierContexte = ctxPrincipal; // Permet à GestionUCI de lire les statistiques
             ctxPrincipal.Nnue = BrunoNNUE.CreerContexte();
             if (!BrunoNNUE.DefinirPosition(ctxPrincipal.Nnue, echiquier))
@@ -143,7 +145,7 @@ namespace Athos64
             var contextesAides = new System.Collections.Concurrent.ConcurrentBag<ContexteRecherche>();
             // Les erreurs des threads aides sont notées ici puis envoyées par le thread principal (un seul thread écrit sur la sortie UCI)
             var erreursAides = new System.Collections.Concurrent.ConcurrentQueue<string>();
-            Task[] tachesAides = LancerThreadsAides(echiquier, fileDeProfondeurs, contextesAides, gestionTemps, erreursAides);
+            Task[] tachesAides = LancerThreadsAides(echiquier, fileDeProfondeurs, contextesAides, gestionTemps, erreursAides, profondeurReglee);
             
             // --- 3. THREAD PRINCIPAL (Thread 0) ---
             DateTime heureDebut = DateTime.Now; // Nécessaire pour le calcul des Noeuds Par Seconde (NPS)
@@ -269,7 +271,8 @@ namespace Athos64
         private static Task[] LancerThreadsAides(Echiquier echiquier, System.Collections.Concurrent.ConcurrentQueue<int> fileDeProfondeurs,
                                                  System.Collections.Concurrent.ConcurrentBag<ContexteRecherche> contextesAides,
                                                  GestionTemps gestionTemps,
-                                                 System.Collections.Concurrent.ConcurrentQueue<string> erreursAides)
+                                                 System.Collections.Concurrent.ConcurrentQueue<string> erreursAides,
+                                                 int profondeurReglee)
         {
             Task[] tachesAides = new Task[ProtocoleUCI.NombreThreads - 1];
             for (int t = 1; t < NombreThreads; t++)
@@ -279,7 +282,7 @@ namespace Athos64
                 var echiquierAide = echiquier.Cloner();
                 tachesAides[t - 1] = Task.Run(() =>
                 {
-                    var ctxAide = new ContexteRecherche();
+                    var ctxAide = new ContexteRecherche { ProfondeurReglee = profondeurReglee };
                     contextesAides.Add(ctxAide);
                     ctxAide.Nnue = BrunoNNUE.CreerContexte();
                     if (!BrunoNNUE.DefinirPosition(ctxAide.Nnue, echiquierAide))

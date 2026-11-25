@@ -13,6 +13,9 @@ Tout le code, les identifiants et les commentaires sont en français : garder ce
 - Depuis la position initiale, `go` répond tout de suite (profondeur 1, 0 nœud) avec un premier coup qui change d'un lancement à l'autre : c'est voulu, pour varier les parties (artificiel mais plus agréable).
 - La recherche n'est pas reproductible en général (nœuds du `bench` différents d'un lancement à l'autre, premier coup aléatoire depuis la position initiale, threads multiples) : le perft sert de référence pour les coups. Exception, vérifiée le 2026-11-24 : avec `Threads` à 1 et `go depth N` depuis une position FEN (pas la position initiale), les nœuds, le coup et le score sont identiques d'un lancement à l'autre. `Diagnostics\comparer_recherche.ps1 -Dossier <dossier de l'exe> -Profondeur 11` en tire 10 positions : deux versions qui donnent les mêmes lignes ont exactement le même comportement (preuve pour un refactoring), et le total donne les nps (bruit d'environ 5 %).
 
+- L'option `Depth` (12 par défaut) ne limite que les `go` sans limite de temps (2026-11-25) : avec `wtime`/`btime`, `movetime` ou `infinite`, c'est le temps qui arrête la recherche (plafond 64) ; `go depth N` reste prioritaire. Les limites d'extension d'échec et de quiescence se règlent sur la profondeur demandée, au plus 20.
+- Essais de force rejetés (match de 200 parties, à ne pas refaire tel quel) : IIR (réduction d'un demi-coup sans coup de la table, profondeur >= 4) : -5 +/- 30 Elo (2026-11-25).
+
 ## Pratiques (reprises de BrunoGUI_GenII et BrunoGUI_Dames)
 
 **Manière de travailler**
