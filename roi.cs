@@ -19,73 +19,47 @@ namespace Athos64
     {   // Masques pour les déplacements du roi (1 case dans toutes les directions)
         private static readonly int[] Deplacements = { -9, -8, -7, -1, 1, 7, 8, 9 };
 
-        public static ulong ObtenirAttaques(ulong rois)
-        {   // Génère les cases attaquées par les rois (1 case dans toutes les directions)  
-            ulong attaques = 0;
-            ulong masque = 1;
+        // Cases voisines de chaque case, calculées une fois pour toutes
+        // (l'ancien calcul à chaque appel allouait un tableau : vu au profileur, 2026-11-25)
+        private static readonly ulong[] Voisines = InitialiserVoisines();
 
-            for (int i = 0; i < 64; i++, masque <<= 1)
+        private static ulong[] InitialiserVoisines()
+        {
+            var voisines = new ulong[64];
+            for (int caseDepart = 0; caseDepart < 64; caseDepart++)
             {
-                if ((rois & masque) != 0)
+                int ligneDepart = caseDepart / 8;
+                int colDepart = caseDepart % 8;
+                foreach (int deplacement in Deplacements)
                 {
-                    int caseIndex = i;
-                    int ligne = caseIndex / 8;
-                    int colonne = caseIndex % 8;
-
-                    // Les 8 mouvements possibles d'un roi
-                    int[] deltas = { -9, -8, -7, -1, 1, 7, 8, 9 };
-
-                    foreach (int delta in deltas)
+                    int caseArrivee = caseDepart + deplacement;
+                    // Filtre : dans l'échiquier, et au plus 1 case dans chaque direction
+                    if (caseArrivee >= 0 && caseArrivee < 64
+                        && Math.Abs(caseArrivee / 8 - ligneDepart) <= 1 && Math.Abs(caseArrivee % 8 - colDepart) <= 1)
                     {
-                        int nouvelleCase = caseIndex + delta;
-                        if (nouvelleCase >= 0 && nouvelleCase < 64)
-                        {
-                            int nouvelleLigne = nouvelleCase / 8;
-                            int nouvelleColonne = nouvelleCase % 8;
-
-                            // Vérifier si le mouvement est dans les limites de l'échiquier
-                            if (Math.Abs(nouvelleLigne - ligne) <= 1 && Math.Abs(nouvelleColonne - colonne) <= 1)
-                            {
-                                attaques |= 1UL << nouvelleCase;
-                            }
-                        }
+                        voisines[caseDepart] |= 1UL << caseArrivee;
                     }
                 }
+            }
+            return voisines;
+        }
+
+        public static ulong ObtenirAttaques(ulong rois)
+        {   // Génère les cases attaquées par les rois (1 case dans toutes les directions)
+            ulong attaques = 0;
+            while (rois != 0)
+            {
+                attaques |= Voisines[BitOperations.TrailingZeroCount(rois)];
+                rois &= rois - 1;
             }
             return attaques;
         }
 
         public static ulong ObtenirMouvements(ulong roi, ulong occupationsAmies)
         {   // Génère les mouvements légaux pour un roi, retourne un Bitboard des cases accessibles.
-
-            ulong mouvements = 0UL;
-            int caseDepart = BitOperations.TrailingZeroCount(roi);
-
-            int ligneDepart = caseDepart / 8;
-            int colDepart = caseDepart % 8;
-
-            foreach (int deplacement in Deplacements)
-            {
-                int caseArrivee = caseDepart + deplacement;
-
-                if (caseArrivee >= 0 && caseArrivee < 64)
-                {
-                    int ligneArrivee = caseArrivee / 8;
-                    int colArrivee = caseArrivee % 8;
-
-                    // Filtre : max 1 case dans chaque direction
-                    if (Math.Abs(ligneArrivee - ligneDepart) <= 1 &&
-                        Math.Abs(colArrivee - colDepart) <= 1)
-                    {
-                        ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
-
-                        if ((masqueArrivee & occupationsAmies) == 0)
-                            mouvements |= masqueArrivee;
-                    }
-                }
-            }
-
-            return mouvements;
+            if (roi == 0)
+                return 0UL;
+            return Voisines[BitOperations.TrailingZeroCount(roi)] & ~occupationsAmies;
         }
     }
 }

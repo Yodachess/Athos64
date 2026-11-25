@@ -32,8 +32,9 @@ namespace Athos64
 {
     public partial class Echiquier
     {
-        public struct Mouvement(int caseDepart, int caseArrivee, Echiquier.TypePiece piece, 
+        public struct Mouvement(int caseDepart, int caseArrivee, Echiquier.TypePiece piece,
             Echiquier.TypePiece? pieceCapturee = null, char? promotion = null, bool estPriseEnPassant = false, bool estRoque = false)
+            : IEquatable<Mouvement>
         {   // Représente un mouvement sur l'échiquier, avec toutes les informations nécessaires pour la validation et la simulation.
             public int CaseDepart { get; } = caseDepart;
             public int CaseArrivee { get; } = caseArrivee;
@@ -43,6 +44,19 @@ namespace Athos64
             public bool EstPriseEnPassant { get; } = estPriseEnPassant;
             public bool EstRoque { get; } = estRoque;
             public int ScoreTri = 0; // Champ pour le tri des mouvements (ex: dans l'ordonnancement des coups)
+
+            // Égalité champ par champ, écrite à la main : l'égalité par défaut d'une structure passe par la réflexion
+            // et alloue à chaque appel (vu au profileur dans la recherche des coups tueurs).
+            // Tous les champs sont comparés, ScoreTri compris, comme le faisait l'égalité par défaut.
+            public readonly bool Equals(Mouvement autre)
+                => CaseDepart == autre.CaseDepart && CaseArrivee == autre.CaseArrivee && Piece == autre.Piece
+                && PieceCapturee == autre.PieceCapturee && Promotion == autre.Promotion
+                && EstPriseEnPassant == autre.EstPriseEnPassant && EstRoque == autre.EstRoque && ScoreTri == autre.ScoreTri;
+
+            public override readonly bool Equals(object? obj) => obj is Mouvement autre && Equals(autre);
+
+            public override readonly int GetHashCode()
+                => HashCode.Combine(CaseDepart, CaseArrivee, Piece, PieceCapturee, Promotion, EstPriseEnPassant, EstRoque, ScoreTri);
         }
 
         public void GenererCapturesLegales(List<Mouvement> captures, bool inclureCoupsCalmesSiEchec = true)
