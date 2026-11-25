@@ -68,8 +68,9 @@ namespace Athos64
         private ulong CalculerIndexTable(ulong cle) => cle & masque;
         public TableTransposition(int tailleMo)
         {
-            // Nombre d'entrées calculé comme avant le passage sans verrou (taille de EntreeTT), pour garder exactement la même recherche
-            int tailleEntree = System.Runtime.InteropServices.Marshal.SizeOf(typeof(EntreeTT));
+            // Nombre d'entrées selon la taille réelle d'une case (16 octets) ; il était calculé avec la taille de l'ancienne
+            // structure EntreeTT, ce qui n'utilisait qu'une partie de la mémoire (2026-11-25)
+            int tailleEntree = System.Runtime.CompilerServices.Unsafe.SizeOf<Case>();
             int nombreEntreesSouhaite = (tailleMo * 1024 * 1024) / tailleEntree;
             int nombreEntrees = (int)Math.Pow(2, Math.Floor(Math.Log(nombreEntreesSouhaite, 2)));
             table = new Case[nombreEntrees];
