@@ -1,0 +1,199 @@
+[Event "Ouverture 1"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 *
+
+[Event "Ouverture 2"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 Nc6 3. d4 cxd4 4. Nxd4 g6 *
+
+[Event "Ouverture 3"]
+[Result "*"]
+
+1. e4 c5 2. Nc3 Nc6 3. g3 g6 4. Bg2 Bg7 *
+
+[Event "Ouverture 4"]
+[Result "*"]
+
+1. e4 e6 2. d4 d5 3. Nc3 Nf6 4. Bg5 Be7 *
+
+[Event "Ouverture 5"]
+[Result "*"]
+
+1. e4 e6 2. d4 d5 3. Nd2 c5 4. exd5 exd5 *
+
+[Event "Ouverture 6"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 Bf5 *
+
+[Event "Ouverture 7"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 *
+
+[Event "Ouverture 8"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 *
+
+[Event "Ouverture 9"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 *
+
+[Event "Ouverture 10"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nf6 3. Nxe5 d6 4. Nf3 Nxe4 *
+
+[Event "Ouverture 11"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 4. Nxd4 Nf6 *
+
+[Event "Ouverture 12"]
+[Result "*"]
+
+1. e4 d5 2. exd5 Qxd5 3. Nc3 Qa5 4. d4 Nf6 *
+
+[Event "Ouverture 13"]
+[Result "*"]
+
+1. e4 d6 2. d4 Nf6 3. Nc3 g6 4. f4 Bg7 *
+
+[Event "Ouverture 14"]
+[Result "*"]
+
+1. e4 Nf6 2. e5 Nd5 3. d4 d6 4. Nf3 Bg4 *
+
+[Event "Ouverture 15"]
+[Result "*"]
+
+1. e4 g6 2. d4 Bg7 3. Nc3 d6 4. Be3 a6 *
+
+[Event "Ouverture 16"]
+[Result "*"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 Be7 *
+
+[Event "Ouverture 17"]
+[Result "*"]
+
+1. d4 d5 2. c4 c6 3. Nf3 Nf6 4. Nc3 dxc4 *
+
+[Event "Ouverture 18"]
+[Result "*"]
+
+1. d4 d5 2. c4 dxc4 3. Nf3 Nf6 4. e3 e6 *
+
+[Event "Ouverture 19"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 *
+
+[Event "Ouverture 20"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O *
+
+[Event "Ouverture 21"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. g3 Ba6 *
+
+[Event "Ouverture 22"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 a6 *
+
+[Event "Ouverture 23"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 d5 4. cxd5 Nxd5 *
+
+[Event "Ouverture 24"]
+[Result "*"]
+
+1. d4 f5 2. g3 Nf6 3. Bg2 g6 4. Nf3 Bg7 *
+
+[Event "Ouverture 25"]
+[Result "*"]
+
+1. d4 d5 2. Bf4 Nf6 3. e3 c5 4. c3 Nc6 *
+
+[Event "Ouverture 26"]
+[Result "*"]
+
+1. d4 Nf6 2. Nf3 e6 3. Bg5 c5 4. e3 Be7 *
+
+[Event "Ouverture 27"]
+[Result "*"]
+
+1. c4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 d5 *
+
+[Event "Ouverture 28"]
+[Result "*"]
+
+1. c4 c5 2. Nc3 Nc6 3. g3 g6 4. Bg2 Bg7 *
+
+[Event "Ouverture 29"]
+[Result "*"]
+
+1. c4 Nf6 2. Nc3 e6 3. e4 d5 4. e5 d4 *
+
+[Event "Ouverture 30"]
+[Result "*"]
+
+1. Nf3 d5 2. g3 Nf6 3. Bg2 c6 4. O-O Bg4 *
+
+[Event "Ouverture 31"]
+[Result "*"]
+
+1. Nf3 Nf6 2. c4 b6 3. g3 Bb7 4. Bg2 e6 *
+
+[Event "Ouverture 32"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 e6 3. d4 cxd4 4. Nxd4 Nc6 *
+
+[Event "Ouverture 33"]
+[Result "*"]
+
+1. e4 c5 2. c3 Nf6 3. e5 Nd5 4. d4 cxd4 *
+
+[Event "Ouverture 34"]
+[Result "*"]
+
+1. e4 e5 2. f4 exf4 3. Nf3 g5 4. h4 g4 *
+
+[Event "Ouverture 35"]
+[Result "*"]
+
+1. e4 e5 2. Nc3 Nf6 3. f4 d5 4. fxe5 Nxe4 *
+
+[Event "Ouverture 36"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 e5 3. dxe5 Ng4 4. Bf4 Nc6 *
+
+[Event "Ouverture 37"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 d6 3. Bb5+ Bd7 4. Bxd7+ Qxd7 *
+
+[Event "Ouverture 38"]
+[Result "*"]
+
+1. d4 e6 2. c4 Bb4+ 3. Bd2 Qe7 4. Nf3 Nf6 *
+
+[Event "Ouverture 39"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Nf6 4. Nc3 Nbd7 *
+
+[Event "Ouverture 40"]
+[Result "*"]
+
+1. b3 e5 2. Bb2 Nc6 3. e3 Nf6 4. Bb5 d6 *

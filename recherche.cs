@@ -550,16 +550,27 @@ namespace Athos64
 
             if (profondeur <= 0) return RechercheQuiescence(ctx, e, alpha, beta, distanceRacine);
 
-            // =======================================================
-            // ---  2. Null Move Pruning (Élagage par le coup nul) ---
-            // =======================================================
+            // Évaluation statique de la position actuelle pour les élagages sélectifs (inutile en échec : aucun élagage ne s'y applique)
+            bool enEchec = e.RoiEnEchec(e.CoteBlanc);
+            bool noeudPV = betaOrigine - alphaOrigine > 1;
+            int evalStatique = enEchec ? -INFINI : BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
 
-            if (CoupNulDonneCoupure(ctx, e, profondeur, distanceRacine, beta))
+            // ==================================================================
+            // --- 2. Reverse Futility Pruning (élagage par l'éval statique) ---
+            // ==================================================================
+            // Près des feuilles, hors variante principale : si l'éval dépasse beta d'une marge par demi-coup restant,
+            // un coup calme suffira presque sûrement à garder l'avantage : on coupe sans chercher (2026-11-25)
+            if (!noeudPV && !enEchec && profondeur <= 6 && Math.Abs(beta) < 20000
+                && evalStatique - 80 * profondeur >= beta)
+                return evalStatique;
+
+            // =======================================================
+            // ---  3. Null Move Pruning (Élagage par le coup nul) ---
+            // =======================================================
+            // Seulement si l'éval statique est déjà au-dessus de beta : sinon passer son tour ne coupera presque jamais (2026-11-25)
+            if (!enEchec && evalStatique >= beta && CoupNulDonneCoupure(ctx, e, profondeur, distanceRacine, beta))
                 return beta;
             // ---------------------------------------------------
-
-            // Évaluation statique de la position actuelle pour les élagages sélectifs
-            int evalStatique = BrunoNNUE.EvaluerNNUE(e, ctx.Nnue);
 
             // ✅ Utilisation du Pool au lieu de l'allocation d'une nouvelle liste
             var listeMouvements = ctx.PoolListes[distanceRacine];
@@ -582,7 +593,7 @@ namespace Athos64
             // ==========================================================
             // --- 4. Boucle de recherche avec choix du meilleur coup ---
             // ==========================================================
-            bool subitEchec = e.RoiEnEchec(e.CoteBlanc);
+            bool subitEchec = enEchec;
 
             for (int i = 0; i < listeMouvements.Count; i++)
             {   // On amène le meilleur coup parmi ceux restants à l'index i
