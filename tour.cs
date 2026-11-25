@@ -8,8 +8,7 @@
 // Classe de gestion des mouvements de la tour (Rook) en utilisant des bitboards.
 // ├─ "ObtenirAttaques" génère les cases attaquées par les tours
 // ├─ "ObtenirMouvements" génère les mouvements légaux pour une tour
-// ├─ "AttaquesDepuis" génère les cases attaquées par une tour depuis une case de départ
-// └─ "Rayon" génère les cases attaquées dans une direction donnée depuis une case de départ
+// └─ "AttaquesDepuis" génère les cases attaquées par une tour depuis une case de départ (rayons précalculés, rayons.cs)
 
 using System.Numerics;
 
@@ -37,40 +36,9 @@ namespace Athos64
         }
 
         private static ulong AttaquesDepuis(int caseDepart, ulong occupations)
-        {   // Génère les cases attaquées par une tour depuis une case de départ, en tenant compte des occupations (pour les rayons bloqués)
-            return
-                Rayon(caseDepart, occupations, +8) |    // Nord
-                Rayon(caseDepart, occupations, -8) |    // Sud  
-                Rayon(caseDepart, occupations, +1) |    // Est
-                Rayon(caseDepart, occupations, -1);     // Ouest
-        }
-
-        private static ulong Rayon(int caseDepart, ulong occupations, int delta)
-        {   // Génère les cases attaquées dans une direction donnée (delta) depuis une case de départ,
-            // en tenant compte des occupations (pour les rayons bloqués)
-            ulong attaques = 0UL;
-            int caseActuelle = caseDepart;
-            while (true)
-            {
-                int suivante = caseActuelle + delta;
-                if (suivante < 0 || suivante >= 64)
-                    break;
-                // anti wrap uniquement pour Est / Ouest
-                if (delta == 1 || delta == -1)
-                {
-                    int colActuelle = caseActuelle % 8;
-                    int colSuivante = suivante % 8;
-
-                    if (Math.Abs(colSuivante - colActuelle) != 1)
-                        break;
-                }
-                ulong masque = 1UL << suivante;
-                attaques |= masque;
-                if ((masque & occupations) != 0)
-                    break;
-                caseActuelle = suivante;
-            }
-            return attaques;
+        {   // Génère les cases attaquées par une tour depuis une case de départ, en tenant compte des occupations (pour les rayons bloqués).
+            // Nord, Sud, Est et Ouest par rayons précalculés (voir rayons.cs).
+            return Rayons.AttaquesTour(caseDepart, occupations);
         }
     }
 }

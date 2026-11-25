@@ -17,8 +17,7 @@
 // ├─ "EstPat" vérifie si le roi du côté actif est pat  (inutilisé ??)
 // ├─ "CasesAttaqueesPar" retourne un bitboard des cases attaquées par le côté donné
 // ├─ "RoiEnEchecApresCoup" vérifie si le roi du côté actif serait en échec après un coup donné
-// ├─ "AppliquerPromotion" applique une promotion de pion si nécessaire
-// ├─ "RoiEstAttaque" vérifie si le roi du côté actif est attaqué par une pièce ennemie
+// ├─ "RoiAttaque" vérifie si le roi est attaqué, en ne cherchant que les attaquants de sa case
 // ├─ "ObtenirPieceCapturee" retourne le type de pièce capturée sur une case donnée
 // ├─ Clouages : voir echiquierClouages.cs ("ObtenirPiecesClouees", "DetecterClouageDirection", "EstPieceGlissanteValide")
 // └─ Perft et notation des coups : voir echiquierPerft.cs
@@ -613,8 +612,7 @@ namespace Athos64
         {   // Vérifie si le roi est en échec.
             ulong roi = roiBlanc ? RoiBlanc : RoiNoir;
             if (roi == 0) return false;
-            ulong attaquesAdverses = CasesAttaqueesPar(!roiBlanc);
-            return (attaquesAdverses & roi) != 0;
+            return RoiAttaque(roi, roiBlanc, ObtenirToutesLesPieces(), ~0UL);
         }
         public bool EstPat()
         {   // Vérifie si la position est un pat (pas de coup légal et roi pas en échec).
@@ -651,99 +649,46 @@ namespace Athos64
         }
 
         public bool RoiEnEchecApresCoup(int caseDepart, int caseArrivee, bool blancJoue, char? promotion = null, bool estPriseEnPassant = false)
-        {   // Simule le coup et vérifie si le roi du camp qui vient de jouer est en échec après ce coup.
-            ulong fromMask = Bitboard.CaseVersBitboard(caseDepart);
-            ulong toMask = Bitboard.CaseVersBitboard(caseArrivee);
+        {   // Vérifie, sans jouer le coup, si le roi du camp qui joue serait en échec après ce coup.
+            // On ne cherche que les attaquants de la case du roi (et non toutes les attaques adverses) :
+            // on regarde depuis cette case comme un cavalier, un pion, un fou, une tour et un roi.
+            // La promotion ne change rien pour notre roi : la pièce promue occupe la même case que le pion.
+            ulong masqueDepart = Bitboard.CaseVersBitboard(caseDepart);
+            ulong masqueArrivee = Bitboard.CaseVersBitboard(caseArrivee);
+            ulong roi = blancJoue ? RoiBlanc : RoiNoir;
+            if (roi == 0) return false;
+            if ((roi & masqueDepart) != 0) roi = masqueArrivee;     // C'est le roi qui se déplace
 
-            // Copies locales des Bitboards
-            ulong pBlanc = PionsBlancs; ulong pNoir = PionsNoirs;
-            ulong cBlanc = CavaliersBlancs; ulong cNoir = CavaliersNoirs;
-            ulong fBlanc = FousBlancs; ulong fNoir = FousNoirs;
-            ulong tBlanc = ToursBlanches; ulong tNoir = ToursNoires;
-            ulong qBlanc = ReineBlanche; ulong qNoir = ReineNoire;
-            ulong rBlanc = RoiBlanc; ulong rNoir = RoiNoir;
+            // Pièce adverse retirée : le pion pris en passant (derrière la case d'arrivée) ou la pièce de la case d'arrivée
+            ulong retiree = estPriseEnPassant ? (blancJoue ? masqueArrivee >> 8 : masqueArrivee << 8) : masqueArrivee;
+            ulong occupations = (ObtenirToutesLesPieces() & ~masqueDepart & ~retiree) | masqueArrivee;
 
-            // --- 1. GESTION DE LA CAPTURE ---
-            if (estPriseEnPassant)
-            {   // En passant : on retire le pion qui est DERRIÈRE la case d'arrivée
-                if (blancJoue) pNoir &= ~(toMask >> 8);
-                else pBlanc &= ~(toMask << 8);
-            }
-            else
-            {   // Capture normale : on nettoie la case d'arrivée
-                pBlanc &= ~toMask; pNoir &= ~toMask;
-                cBlanc &= ~toMask; cNoir &= ~toMask;
-                fBlanc &= ~toMask; fNoir &= ~toMask;
-                tBlanc &= ~toMask; tNoir &= ~toMask;
-                qBlanc &= ~toMask; qNoir &= ~toMask;
-            }
-
-            // --- 2. DÉPLACEMENT ET PROMOTION ---
-            if (blancJoue)
-            {
-                if ((pBlanc & fromMask) != 0)
-                {   // On retire la pièce de la case de départ
-                    pBlanc &= ~fromMask;
-                    if (promotion == null) pBlanc |= toMask;
-                    else AppliquerPromotion(promotion.Value, true, ref qBlanc, ref tBlanc, ref fBlanc, ref cBlanc, toMask);
-                }
-                else if ((cBlanc & fromMask) != 0) { cBlanc &= ~fromMask; cBlanc |= toMask; }
-                else if ((fBlanc & fromMask) != 0) { fBlanc &= ~fromMask; fBlanc |= toMask; }
-                else if ((tBlanc & fromMask) != 0) { tBlanc &= ~fromMask; tBlanc |= toMask; }
-                else if ((qBlanc & fromMask) != 0) { qBlanc &= ~fromMask; qBlanc |= toMask; }
-                else if ((rBlanc & fromMask) != 0) { rBlanc &= ~fromMask; rBlanc |= toMask; }
-
-                return RoiEstAttaque(rBlanc, false, pBlanc, pNoir, cBlanc, cNoir, fBlanc, fNoir, tBlanc, tNoir, qBlanc, qNoir, rBlanc, rNoir);
-            }
-            else
-            {
-                if ((pNoir & fromMask) != 0)
-                {
-                    pNoir &= ~fromMask;
-                    if (promotion == null) pNoir |= toMask;
-                    else AppliquerPromotion(promotion.Value, false, ref qNoir, ref tNoir, ref fNoir, ref cNoir, toMask);
-                }
-                else if ((cNoir & fromMask) != 0) { cNoir &= ~fromMask; cNoir |= toMask; }
-                else if ((fNoir & fromMask) != 0) { fNoir &= ~fromMask; fNoir |= toMask; }
-                else if ((tNoir & fromMask) != 0) { tNoir &= ~fromMask; tNoir |= toMask; }
-                else if ((qNoir & fromMask) != 0) { qNoir &= ~fromMask; qNoir |= toMask; }
-                else if ((rNoir & fromMask) != 0) { rNoir &= ~fromMask; rNoir |= toMask; }
-
-                return RoiEstAttaque(rNoir, true, pBlanc, pNoir, cBlanc, cNoir, fBlanc, fNoir, tBlanc, tNoir, qBlanc, qNoir, rBlanc, rNoir);
-            }
+            return RoiAttaque(roi, blancJoue, occupations, ~retiree);
         }
 
-        private void AppliquerPromotion(char type, bool blanc, ref ulong q, ref ulong t, ref ulong f, ref ulong c, ulong mask)
-        {   // Retire le pion et place la pièce promue
-            switch (type)
-            {
-                case 'q': q |= mask; break;
-                case 'r': t |= mask; break;
-                case 'b': f |= mask; break;
-                case 'n': c |= mask; break;
-            }
-        }
-        private bool RoiEstAttaque(
-            ulong roi, bool roiNoir, ulong pBlanc, ulong pNoir, ulong cBlanc, ulong cNoir, ulong fBlanc, ulong fNoir,
-                                        ulong tBlanc, ulong tNoir, ulong qBlanc, ulong qNoir, ulong rBlanc, ulong rNoir)
+        // Le roi (bitboard d'une case) du camp donné est-il attaqué, avec ces occupations ?
+        // filtreAdverses retire des pièces adverses celles qui viennent d'être prises (~0UL si aucune).
+        private bool RoiAttaque(ulong roi, bool roiBlanc, ulong occupations, ulong filtreAdverses)
         {
-            ulong occup = pBlanc | pNoir | cBlanc | cNoir | fBlanc | fNoir | tBlanc | tNoir | qBlanc | qNoir | rBlanc | rNoir;
+            ulong pions, cavaliers, fousEtReines, toursEtReines, roiAdverse, pionsAttaquants;
+            if (roiBlanc)
+            {
+                pions = PionsNoirs; cavaliers = CavaliersNoirs; roiAdverse = RoiNoir;
+                fousEtReines = FousNoirs | ReineNoire; toursEtReines = ToursNoires | ReineNoire;
+                pionsAttaquants = Pion.ObtenirAttaquesBlanches(roi);    // Cases d'où un pion noir attaquerait le roi
+            }
+            else
+            {
+                pions = PionsBlancs; cavaliers = CavaliersBlancs; roiAdverse = RoiBlanc;
+                fousEtReines = FousBlancs | ReineBlanche; toursEtReines = ToursBlanches | ReineBlanche;
+                pionsAttaquants = Pion.ObtenirAttaquesNoires(roi);
+            }
 
-            ulong attaques =
-                // pions
-                (roiNoir ? Pion.ObtenirAttaquesBlanches(pBlanc) : Pion.ObtenirAttaquesNoires(pNoir))
-                // cavaliers
-                | Cavalier.ObtenirAttaques(roiNoir ? cBlanc : cNoir)
-                // fous
-                | Fou.ObtenirAttaques(roiNoir ? fBlanc : fNoir, occup)
-                // tours
-                | Tour.ObtenirAttaques(roiNoir ? tBlanc : tNoir, occup)
-                // reines
-                | Reine.ObtenirAttaques(roiNoir ? qBlanc : qNoir, occup)
-                // Et enfin, le roi adverse
-                | Roi.ObtenirAttaques(roiNoir ? rBlanc : rNoir);
-
-            return (attaques & roi) != 0;
+            return ((pionsAttaquants & pions & filtreAdverses) != 0)
+                || ((Cavalier.ObtenirAttaques(roi) & cavaliers & filtreAdverses) != 0)
+                || ((Roi.ObtenirAttaques(roi) & roiAdverse) != 0)
+                || ((Fou.ObtenirAttaques(roi, occupations) & fousEtReines & filtreAdverses) != 0)
+                || ((Tour.ObtenirAttaques(roi, occupations) & toursEtReines & filtreAdverses) != 0);
         }
         private TypePiece? ObtenirPieceCapturee(int caseArrivee, bool ennemiEstNoir)
         {   // Retourne le type de la pièce capturée sur la case d'arrivée, ou null s'il n'y a pas de capture.
