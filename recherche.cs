@@ -706,8 +706,10 @@ namespace Athos64
             Le moteur explore donc davantage les coups prometteurs, retrouve les bons coups... mais en contrepartie il visite plus de nœuds et devient plus lent. C'est le compromis classique du réglage du LMR.
             (Réglage actuel : à partir du 5ᵉ coup, numeroCoup >= 4 ; voir la condition ci-dessous.)
             */
+            // Coup tueur reconnu par ses cases, comme pour le tri (2026-11-25) : Equals comparait aussi ScoreTri,
+            // et le tueur garde le score de tri qu'il avait lors de sa coupure : il n'était reconnu que par hasard
             bool estKiller = (distanceRacine < 64) &&
-                             (mouvement.Equals(ctx.KillerMoves[distanceRacine, 0]) || mouvement.Equals(ctx.KillerMoves[distanceRacine, 1]));
+                             (MemesCases(mouvement, ctx.KillerMoves[distanceRacine, 0]) || MemesCases(mouvement, ctx.KillerMoves[distanceRacine, 1]));
 
             if (profondeur >= 3
                 && numeroCoup >= 4       // Laisser les 4 premiers coups (0, 1, 2, 3) à pleine profondeur
@@ -749,6 +751,11 @@ namespace Athos64
             e.AnnulerCoup(etatPrecedent);
             return score;
         }
+
+        // Même coup d'après ses cases (et sa promotion) ; un tueur vide (cases égales) ne correspond à rien
+        private static bool MemesCases(Echiquier.Mouvement m, Echiquier.Mouvement tueur)
+            => tueur.CaseDepart != tueur.CaseArrivee && m.CaseDepart == tueur.CaseDepart
+            && m.CaseArrivee == tueur.CaseArrivee && m.Promotion == tueur.Promotion;
 
         // Tous les 64 nœuds, lève ArretRechercheException si l'arrêt a été demandé
         private static void VerifierArretDemande(ContexteRecherche ctx)
