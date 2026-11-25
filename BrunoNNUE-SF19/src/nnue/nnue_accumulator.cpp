@@ -498,8 +498,75 @@ void apply_combined(Color                              perspective,
     const auto& fromPsqtAcc = from.psqtAccumulation[perspective];
     auto&       toPsqtAcc   = to.psqtAccumulation[perspective];
 
-    Tile     acc;
     PsqtTile psqt;
+
+#if defined(_MSC_VER) && !defined(__clang__) && defined(VECTOR) && !defined(USE_RVV)
+    // Athos64 (2026-11-25) : MSVC ne garde pas en registres le Tile renvoyé par valeur par apply_* :
+    // l'assembleur montre qu'il le recopie en mémoire (256 octets) après chaque colonne appliquée.
+    // Ici les adresses des colonnes sont calculées une fois, et l'accumulateur est traité par blocs de 8 registres
+    // tenus dans 8 variables locales. Mesuré dans la recherche d'Athos64 : évaluation de ~2,3 à ~1,9 µs.
+    // Mêmes opérations dans le même ordre pour chaque élément : résultat identique.
+    {
+        const auto* src = reinterpret_cast<const vec_t*>(fromAcc.data());
+        auto*       dst = reinterpret_cast<vec_t*>(toAcc.data());
+        const i16*  psq = featureTransformer.weights.data();
+        const i8*   thr = featureTransformer.threatAndPpWeights.data();
+
+        const vec_t*    psqSub[PSQFeatureSet::MaxActiveDimensions];
+        const vec_t*    psqAdd[PSQFeatureSet::MaxActiveDimensions];
+        const vec_i8_t* thrSub[256];  // capacité de ThreatFeatureSet::IndexList
+        const vec_i8_t* thrAdd[256];
+        const int nPsqSub = psqRemoved.ssize(), nPsqAdd = psqAdded.ssize();
+        const int nThrSub = thrRemoved.ssize(), nThrAdd = thrAdded.ssize();
+        for (int i = 0; i < nPsqSub; ++i)
+            psqSub[i] = reinterpret_cast<const vec_t*>(psq + usize(psqRemoved[i]) * Dimensions);
+        for (int i = 0; i < nPsqAdd; ++i)
+            psqAdd[i] = reinterpret_cast<const vec_t*>(psq + usize(psqAdded[i]) * Dimensions);
+        for (int i = 0; i < nThrSub; ++i)
+            thrSub[i] = reinterpret_cast<const vec_i8_t*>(thr + usize(thrRemoved[i]) * Dimensions);
+        for (int i = 0; i < nThrAdd; ++i)
+            thrAdd[i] = reinterpret_cast<const vec_i8_t*>(thr + usize(thrAdded[i]) * Dimensions);
+
+        constexpr IndexType NumVec = Dimensions * sizeof(i16) / sizeof(vec_t);
+        static_assert(NumVec % 8 == 0);
+        for (IndexType r = 0; r < NumVec; r += 8)
+        {
+            vec_t a0 = src[r], a1 = src[r + 1], a2 = src[r + 2], a3 = src[r + 3];
+            vec_t a4 = src[r + 4], a5 = src[r + 5], a6 = src[r + 6], a7 = src[r + 7];
+            for (int i = 0; i < nPsqSub; ++i)
+            {
+                const vec_t* c = psqSub[i] + r;
+                a0 = vec_sub_16(a0, c[0]); a1 = vec_sub_16(a1, c[1]); a2 = vec_sub_16(a2, c[2]); a3 = vec_sub_16(a3, c[3]);
+                a4 = vec_sub_16(a4, c[4]); a5 = vec_sub_16(a5, c[5]); a6 = vec_sub_16(a6, c[6]); a7 = vec_sub_16(a7, c[7]);
+            }
+            for (int i = 0; i < nPsqAdd; ++i)
+            {
+                const vec_t* c = psqAdd[i] + r;
+                a0 = vec_add_16(a0, c[0]); a1 = vec_add_16(a1, c[1]); a2 = vec_add_16(a2, c[2]); a3 = vec_add_16(a3, c[3]);
+                a4 = vec_add_16(a4, c[4]); a5 = vec_add_16(a5, c[5]); a6 = vec_add_16(a6, c[6]); a7 = vec_add_16(a7, c[7]);
+            }
+            for (int i = 0; i < nThrSub; ++i)
+            {
+                const vec_i8_t* c = thrSub[i] + r;
+                a0 = vec_sub_16(a0, vec_convert_8_16(c[0])); a1 = vec_sub_16(a1, vec_convert_8_16(c[1]));
+                a2 = vec_sub_16(a2, vec_convert_8_16(c[2])); a3 = vec_sub_16(a3, vec_convert_8_16(c[3]));
+                a4 = vec_sub_16(a4, vec_convert_8_16(c[4])); a5 = vec_sub_16(a5, vec_convert_8_16(c[5]));
+                a6 = vec_sub_16(a6, vec_convert_8_16(c[6])); a7 = vec_sub_16(a7, vec_convert_8_16(c[7]));
+            }
+            for (int i = 0; i < nThrAdd; ++i)
+            {
+                const vec_i8_t* c = thrAdd[i] + r;
+                a0 = vec_add_16(a0, vec_convert_8_16(c[0])); a1 = vec_add_16(a1, vec_convert_8_16(c[1]));
+                a2 = vec_add_16(a2, vec_convert_8_16(c[2])); a3 = vec_add_16(a3, vec_convert_8_16(c[3]));
+                a4 = vec_add_16(a4, vec_convert_8_16(c[4])); a5 = vec_add_16(a5, vec_convert_8_16(c[5]));
+                a6 = vec_add_16(a6, vec_convert_8_16(c[6])); a7 = vec_add_16(a7, vec_convert_8_16(c[7]));
+            }
+            dst[r] = a0; dst[r + 1] = a1; dst[r + 2] = a2; dst[r + 3] = a3;
+            dst[r + 4] = a4; dst[r + 5] = a5; dst[r + 6] = a6; dst[r + 7] = a7;
+        }
+    }
+#else
+    Tile acc;
 
     for (IndexType j = 0; j < Dimensions; increment_index(j))
     {
@@ -513,6 +580,7 @@ void apply_combined(Color                              perspective,
 
         store_tile(j, toAcc.data(), acc);
     }
+#endif
 
     for (IndexType j = 0; j < PSQTBuckets; increment_psqt_index(j))
     {

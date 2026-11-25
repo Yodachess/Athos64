@@ -7,6 +7,8 @@ Fichiers ajoutés ou modifiés pour Athos64 :
   src\probe.cpp / probe.h   évaluation et contexte incrémental (position + pile d'accumulateurs, un par thread de recherche)
   src\BrunoNNUE.cpp / .h    fonctions exportées (NNUE_Init, NNUE_Eval*, NNUE_Ctx*)
   src\bruno_stubs.cpp       éléments de Stockfish nécessaires à la liaison
+  src\nnue\nnue_accumulator.cpp   apply_combined réécrite pour MSVC (2026-11-25) : MSVC recopiait l'accumulateur
+                            en mémoire après chaque colonne ; même résultat, évaluation ~20 % plus rapide
 
 Construction (Visual Studio 2022, jeu d'outils C++, AVX2) :
   MSBuild.exe BrunoNNUE.vcxproj /p:Configuration=Release /p:Platform=x64
