@@ -100,8 +100,9 @@ namespace Athos64
             string lignePVGlobal = "";
             string lignePV = "";
 
-            // 1. Vidage de la TT et réinitialisation globale
-            ReinitialiserMoteur(TT);
+            // 1. La TT n'est plus vidée à chaque coup (2026-11-25) : la position après le coup adverse a déjà été cherchée
+            //    au coup précédent. Elle n'est vidée qu'à "ucinewgame" (NouvellePartieUci).
+            MeilleurMouvementTrouve = default;  // Repli de ValiderPV : ne doit jamais venir d'une position précédente
             // 2. Initialisation de la gestion du temps juste avant d'attaquer la recherche
             Recherche.GestionTempsEnCours = gestionTemps;
             gestionTemps.DemandeArret = false;
@@ -167,7 +168,7 @@ namespace Athos64
                     ctxPrincipal.ProfondeurMaxAtteinte = 0;
 
                     // Recherche complète puis, à partir de la profondeur 5, recherche avec fenêtre d'aspiration
-                    score = RechercherAProfondeur(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+                    score = RechercherAProfondeur(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal, score);
 
                     // ------------------------------------------------------------------
                     // Mise à jour de averageScore comme dans Stockfish RootMove
@@ -322,20 +323,19 @@ namespace Athos64
         // Recherche à la profondeur p à la racine : complète jusqu'à la profondeur 4, puis avec fenêtre d'aspiration.
         // Retourne le score ; le meilleur coup et la ligne PV sont mis à jour par ValiderPV.
         private static int RechercherAProfondeur(Echiquier echiquier, int p, ContexteRecherche ctxPrincipal,
-                                                 ref Mouvement? meilleurMouvementGlobal, ref string lignePVGlobal)
+                                                 ref Mouvement? meilleurMouvementGlobal, ref string lignePVGlobal, int scorePrecedent)
         {
             int score;
-            if (p <= 4)
-            {   // Recherche complète de référence
+            if (p <= 4 || Math.Abs(scorePrecedent) >= SCORE_MAT - 100)
+            {   // Recherche complète : premières profondeurs, ou score de mat (la fenêtre n'aurait pas de sens)
                 score = Negamax(echiquier, p, 0, -INFINI, INFINI, ctxPrincipal);
                 ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
             }
             else
             {   // ---------------- Fenêtre d'aspiration ----------------
-
-                // Recherche complète pour obtenir le score de référence
-                score = Negamax(echiquier, p, 0,-INFINI, INFINI, ctxPrincipal);
-                ValiderPV(echiquier, p, ctxPrincipal, ref meilleurMouvementGlobal, ref lignePVGlobal);
+                // Centrée sur le score de l'itération précédente (2026-11-25 : avant, une recherche complète à la même
+                // profondeur précédait la fenêtre, qui n'économisait donc rien)
+                score = scorePrecedent;
 
                 const int MargeInitiale = 50;
                 int marge = MargeInitiale;
@@ -343,7 +343,7 @@ namespace Athos64
                 int alphaFenetre = Math.Max(score - marge, -INFINI);
                 int betaFenetre = Math.Min(score + marge, INFINI);
 
-                for (int tentative = 0; tentative < 6; tentative++)
+                while (true)    // Se termine toujours : au-delà de 1600 cp de marge, la fenêtre est entièrement ouverte
                 {
                     int scoreFenetre = Negamax(echiquier, p, 0, alphaFenetre, betaFenetre, ctxPrincipal);
 
@@ -373,6 +373,11 @@ namespace Athos64
                     else
                     {   // FAIL-HIGH
                         betaFenetre = Math.Min(scoreFenetre + marge, INFINI);
+                    }
+                    if (marge > 1600)
+                    {
+                        alphaFenetre = -INFINI;
+                        betaFenetre = INFINI;
                     }
 
                     if (alphaFenetre == -INFINI && betaFenetre == INFINI)
@@ -821,7 +826,9 @@ namespace Athos64
             // Récupération et ajustement du score pour les transpositions de Mat
             int scoreTT = FiltrerScoreTT_Sortie(entree.Value.Score, distanceRacine);
 
-            if (entree.Value.Profondeur >= profondeur)
+            // Jamais de coupure à la racine (2026-11-25) : la table est gardée d'un coup à l'autre, une coupure ici terminerait
+            // l'itération sans chercher ni remplir la PV. Le coup de la table sert alors seulement au tri.
+            if (entree.Value.Profondeur >= profondeur && distanceRacine > 0)
             {
                 if (entree.Value.Type == TypeBorne.Exact)
                 {   // Valeur exacte : coupure immédiate
