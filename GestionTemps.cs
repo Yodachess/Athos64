@@ -12,7 +12,9 @@
 // ├─ "DemarrerPonder" démarre le chronomètre en mode ponder
 // ├─ "SignalerPonderhit" signale un ponderhit
 // ├─ "ForcerArret" force l'arrêt de la recherche
-// └─ "DoitArreter" vérifie si la recherche doit s'arrêter
+// ├─ "DoitArreter" vérifie si la recherche doit s'arrêter (limite maximale : interrompt l'itération en cours)
+// ├─ "FixerTempsOptimal" temps visé pour le coup, plus court que la limite maximale (parties à la pendule)
+// └─ "NePasCommencerIteration" entre deux itérations : vrai si la fraction donnée du temps visé est déjà écoulée
 
 using System;
 using System.Diagnostics;
@@ -47,8 +49,24 @@ namespace Athos64
         public void Demarrer(int ms)
         {
             _tempsAlloueInitial = ms;
-            LimiteFin = Maintenant() + ms;
+            _debut = Maintenant();
+            LimiteFin = _debut + ms;
             EstInfini = false;
+        }
+
+        // Temps visé (ms) en partie à la pendule ; 0 = aucun (movetime, depth, infinite : seule la limite maximale compte)
+        private int _tempsOptimal = 0;
+        private long _debut = 0;
+        public void FixerTempsOptimal(int ms)
+        {
+            _tempsOptimal = ms;
+        }
+
+        // Appelé entre deux itérations : une nouvelle itération coûte plus que toutes les précédentes réunies ;
+        // si une bonne part du temps visé est déjà passée, elle serait le plus souvent interrompue et perdue (2026-11-26)
+        public bool NePasCommencerIteration(double fraction)
+        {
+            return _tempsOptimal > 0 && !EstInfini && Maintenant() - _debut >= _tempsOptimal * fraction;
         }
         public void DemarrerInfini()
         {
@@ -66,7 +84,8 @@ namespace Athos64
             {   // Rebascule en recherche normale limitée par le temps
                 EstInfini = false;
                 // On applique le temps de calcul à partir de maintenant (moment du ponderhit)
-                LimiteFin = Maintenant() + _tempsAlloueInitial;
+                _debut = Maintenant();
+                LimiteFin = _debut + _tempsAlloueInitial;
             }
         }
         public void ForcerArret()

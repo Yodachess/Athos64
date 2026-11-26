@@ -162,6 +162,10 @@ namespace Athos64
                 int averageScore = 0;
                 bool averageScoreInitialise = false;
 
+                // Stabilité du meilleur coup d'une itération à l'autre (gestion du temps)
+                Mouvement? coupIterationPrecedente = null;
+                int iterationsStables = 0;
+
                 for (int p = 1; p <= profondeurMax; p++)
                 {
                     ctxPrincipal.NoeudsQuiescence = 0;
@@ -186,6 +190,18 @@ namespace Athos64
 
                     // --- Affichage de la ligne d'informations uci info depth ... ---
                     envoyerInfo?.Invoke(ConstruireLigneInfo(echiquier, p, score, lignePVGlobal, ctxPrincipal, contextesAides, heureDebut));
+
+                    // --- Gestion du temps entre deux itérations (2026-11-26) ---
+                    // Meilleur coup stable : on s'arrête plus tôt ; il vient de changer : on prend plus de temps
+                    if (meilleurMouvementGlobal.HasValue)
+                    {
+                        bool memeCoup = coupIterationPrecedente.HasValue && MemesCases(meilleurMouvementGlobal.Value, coupIterationPrecedente.Value);
+                        iterationsStables = memeCoup ? iterationsStables + 1 : 0;
+                        coupIterationPrecedente = meilleurMouvementGlobal;
+                    }
+                    double fraction = iterationsStables >= 3 ? 0.4 : iterationsStables >= 1 ? 0.6 : 0.9;
+                    if (p >= 4 && gestionTemps.NePasCommencerIteration(fraction))
+                        break;
                 }
             }
 

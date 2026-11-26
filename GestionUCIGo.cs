@@ -88,9 +88,14 @@ namespace Athos64
                 int increment = _echiquier.CoteBlanc ? winc : binc;
                 int tempsPourCeCoup = CalculerTempsPourCeCoup(tempsRestant, increment, movestogo);
 
-                gestionTemps.Demarrer(tempsPourCeCoup);
+                // Le temps calculé est le temps visé : entre deux itérations, la recherche décide de continuer ou non.
+                // La limite maximale (3 fois plus, au plus 30 % du temps restant) n'interrompt qu'une itération trop longue (2026-11-26)
+                int tempsMaximal = Math.Min(3 * tempsPourCeCoup, Math.Max(tempsPourCeCoup, tempsRestant * 3 / 10));
+                tempsMaximal = Math.Max(20, Math.Min(tempsMaximal, tempsRestant - 100));
+                gestionTemps.Demarrer(tempsMaximal);
+                gestionTemps.FixerTempsOptimal(tempsPourCeCoup);
                 limiteDeTemps = true;
-                _fluxUCI.EcrireDebug($"Temps restant={tempsRestant}  incr={increment}  alloué={tempsPourCeCoup}");
+                _fluxUCI.EcrireDebug($"Temps restant={tempsRestant}  incr={increment}  visé={tempsPourCeCoup}  maximum={tempsMaximal}");
             }
 
             // Avec une limite de temps et sans "go depth", l'option Depth ne bride plus la recherche (2026-11-25) :
