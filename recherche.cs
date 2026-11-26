@@ -1140,7 +1140,8 @@ namespace Athos64
 
             // Si on est en échec, le score statique ne veut rien dire.
             // On initialise 'meilleurScoreQ' à une valeur plancher relative au Mat.
-            int meilleurScoreQ = enEchec ? -99999 + distanceRacine : scoreStatique;
+            // Même échelle que la recherche principale (-INFINI + distance), sinon le mat n'est pas reconnu comme tel (2026-11-26)
+            int meilleurScoreQ = enEchec ? -INFINI + distanceRacine : scoreStatique;
 
             // --- 2. Génération des captures uniquement ---
             // ✅ Utilisation du Pool avec décalage pour ne pas écraser le Negamax
@@ -1200,7 +1201,7 @@ namespace Athos64
                 // Si on était en échec et qu'aucun coup n'a pu être joué, c'est Échec et Mat.
                 if (enEchec && coupsJouesLegaux == 0)
                 {
-                    return -99999 + distanceRacine;
+                    return -INFINI + distanceRacine;
                 }
 
                 // --- STOCKAGE EN FIN DE BOUCLE (Fail-Low ou Exact) ---
