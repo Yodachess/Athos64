@@ -9,7 +9,7 @@
 // ├─ "DemanderArret" demande l'arrêt de la recherche
 // ├─ "Demarrer" démarre le chronomètre avec un temps limité
 // ├─ "DemarrerInfini" démarre le chronomètre en mode infini
-// ├─ "DemarrerPonder" démarre le chronomètre en mode ponder
+// ├─ "PasserEnPonder" "go ponder" : recherche infinie jusqu'au ponderhit (le temps calculé est gardé pour lui)
 // ├─ "SignalerPonderhit" signale un ponderhit
 // ├─ "ForcerArret" force l'arrêt de la recherche
 // ├─ "DoitArreter" vérifie si la recherche doit s'arrêter (limite maximale : interrompt l'itération en cours)
@@ -28,8 +28,17 @@ namespace Athos64
     {
         private int _tempsAlloueInitial = 0; // On stocke le temps alloué au départ pour le ponderhit
         public long LimiteFin { get; private set; }
-        public bool EstInfini { get; private set; }
-        public bool DemandeArret { get; set; } = false;
+        // Écrits par le thread principal (stop, ponderhit), lus par les threads de recherche : volatile
+        private volatile bool _estInfini;
+        private volatile bool _demandeArret;
+        private volatile bool _stopRecu;
+        private volatile bool _enPonder;
+        public bool EstInfini { get => _estInfini; private set => _estInfini = value; }
+        public bool DemandeArret { get => _demandeArret; set => _demandeArret = value; }
+        // "stop" reçu de l'interface (DemandeArret sert aussi à arrêter les threads aides à la fin de chaque recherche)
+        public bool StopRecu => _stopRecu;
+        // "go ponder" en cours : ni ponderhit ni stop reçu ; le bestmove doit attendre l'un des deux
+        public bool EnPonder => _enPonder;
 
         // Horloge monotone en millisecondes (Stopwatch : précise, insensible aux changements d'heure système)
         private static long Maintenant()
@@ -38,8 +47,9 @@ namespace Athos64
         }
 
         public void DemanderArret()
-        {
-            DemandeArret = true; // Signal envoyé au thread de recherche
+        {   // Commande "stop" : signal envoyé au thread de recherche
+            _stopRecu = true;
+            DemandeArret = true;
         }
         public GestionTemps()
         {   // On met une limite très lointaine pour ne pas s'arrêter par défaut
@@ -72,20 +82,21 @@ namespace Athos64
         {
             EstInfini = true;
         }
-        public void DemarrerPonder(int ms)
-        {   // Pendant le ponder, on stocke le temps théorique alloué,
-            // mais on force la recherche en mode infini pour l'instant.
-            _tempsAlloueInitial = ms;
+        public void PasserEnPonder()
+        {   // "go ponder" (2026-11-26) : le temps calculé (Demarrer, FixerTempsOptimal) est gardé pour le ponderhit,
+            // mais la recherche est infinie jusque-là
+            _enPonder = true;
             EstInfini = true;
         }
         public void SignalerPonderhit()
         {
-            if (EstInfini)
+            if (_enPonder)
             {   // Rebascule en recherche normale limitée par le temps
-                EstInfini = false;
                 // On applique le temps de calcul à partir de maintenant (moment du ponderhit)
                 _debut = Maintenant();
                 LimiteFin = _debut + _tempsAlloueInitial;
+                EstInfini = false;
+                _enPonder = false;
             }
         }
         public void ForcerArret()

@@ -28,7 +28,10 @@ namespace Athos64
             int profondeur = ProfondeurDeRecherche;
             bool profondeurDonnee = false;      // "go depth N" reçu
             bool limiteDeTemps = false;         // wtime/btime, movetime ou infinite reçu : c'est le temps qui arrête la recherche
+            bool ponder = false;                // "go ponder" : recherche infinie jusqu'au ponderhit ou au stop
             var gestionTemps = new GestionTemps();
+            // Enregistré tout de suite : un "stop" ou un "ponderhit" reçu avant le début de la recherche doit atteindre ce chronomètre
+            Recherche.GestionTempsEnCours = gestionTemps;
             int wtime = -1;
             int btime = -1;
             int winc = 0;
@@ -43,6 +46,11 @@ namespace Athos64
                 {   // Si le mode "infinite" est demandé, on démarre la recherche infinie
                     gestionTemps.DemarrerInfini();
                     limiteDeTemps = true;
+                    continue;
+                }
+                if (jeton == "ponder")
+                {
+                    ponder = true;
                     continue;
                 }
                 if (i + 1 >= jetons.Count)  // On s'assure qu'il y a un argument après le jeton actuel
@@ -103,10 +111,22 @@ namespace Athos64
             if (limiteDeTemps && !profondeurDonnee)
                 profondeur = PROFONDEUR_MAX_TEMPS;
 
+            // "go ponder" (2026-11-26) : le temps est calculé comme d'habitude, mais ne compte qu'à partir du ponderhit
+            if (ponder)
+            {
+                gestionTemps.PasserEnPonder();
+                if (!profondeurDonnee)
+                    profondeur = PROFONDEUR_MAX_TEMPS;
+            }
+
             _fluxUCI.EcrireDebug($"Lancement recherche profondeur: {profondeur}");
 
             // 3. Recherche avec récupération du tuple, puis affichage du bestmove final (seul endroit autorisé à le faire)
             var resultatRecherche = Recherche.Chercher(_echiquier, profondeur, gestionTemps, (info) => _fluxUCI.EcrireLigne(info));
+            // En ponder, le protocole UCI interdit d'envoyer le bestmove avant le ponderhit ou le stop,
+            // même si la recherche est déjà finie (mat trouvé, profondeur maximale atteinte)
+            while (gestionTemps.EnPonder && !gestionTemps.StopRecu)
+                System.Threading.Thread.Sleep(2);
             EnvoyerMeilleurCoup(resultatRecherche);
             GC.Collect(1, GCCollectionMode.Forced, false);
         }

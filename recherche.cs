@@ -105,7 +105,7 @@ namespace Athos64
             MeilleurMouvementTrouve = default;  // Repli de ValiderPV : ne doit jamais venir d'une position précédente
             // 2. Initialisation de la gestion du temps juste avant d'attaquer la recherche
             Recherche.GestionTempsEnCours = gestionTemps;
-            gestionTemps.DemandeArret = false;
+            gestionTemps.DemandeArret = gestionTemps.StopRecu;     // Un "stop" déjà reçu n'est pas effacé
 
             // Variété pour le 1er coup : un coup d'ouverture choisi au hasard parmi les plus populaires
             Mouvement? coupForcePremierTour = ChoisirCoupVarie(echiquier);
