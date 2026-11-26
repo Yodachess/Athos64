@@ -21,12 +21,14 @@ Athos64 currently uses several standard chess-engine search techniques:
 * Zobrist hashing
 * Quiescence Search
 * Null Move Pruning
+* Reverse Futility Pruning
+* Futility Pruning
 * Late Move Reductions (LMR)
 * Killer Moves
 * History Heuristic
 * MVV-LVA
 * Aspiration Windows
-* Time management
+* Time management (target time and hard limit, pondering)
 * Multi-threaded search based on Lazy SMP
 
 Some search heuristics may be enabled, disabled, or adjusted during development and testing.
@@ -475,13 +477,14 @@ Athos64 utilise actuellement plusieurs techniques classiques de recherche utilis
 * Hashage Zobrist
 * Quiescence Search
 * Null Move Pruning
+* Reverse Futility Pruning
 * Late Move Reductions (LMR)
 * Futility Pruning
 * Killer Moves
 * History Heuristic
 * MVV-LVA
 * Aspiration Windows
-* Gestion du temps
+* Gestion du temps (temps visé et limite maximale, ponder)
 * Recherche multi-thread basée sur Lazy SMP
 
 Certaines heuristiques peuvent être activées, désactivées ou ajustées au cours du développement et des tests.

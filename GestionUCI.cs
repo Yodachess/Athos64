@@ -283,7 +283,7 @@ namespace Athos64
 
         private void Uci()
         {   // Envoie les informations d'identification du moteur d'échecs au protocole UCI
-            var version = "V 1.30 NNUE_SF19";
+            var version = "V 1.40 NNUE_SF19";
             if (Environment.Is64BitProcess)
                 version = $"{version} x64";
             else
