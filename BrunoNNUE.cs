@@ -8,6 +8,7 @@
 // Classe faisant le pont pour manipuler les réseaux de neurones
 // ├─ Constructeur statique "NNUE" pour initialiser la DLL
 // ├─ "Initialiser" initialise le réseau de neurones à partir du fichier fourni
+// ├─ "ChangerReseau" charge un autre réseau (option EvalFile) ; en cas d'échec le précédent reste en place
 // ├─ "EvaluerEchiquier" retourne l'évaluation complète à partir de l'échiquier fourni en entrée
 // ├─ "RemplirPieceBoard" remplit le tableau de pièces à partir d'un bitboard
 // └─ Évaluation incrémentale (un contexte natif par thread de recherche) :
@@ -84,6 +85,32 @@ namespace Athos64
                 if (pReseau != IntPtr.Zero) Marshal.FreeCoTaskMem(pReseau);
             }
         }
+        public static bool ChangerReseau(string reseau)
+        {   // Charge un autre réseau (setoption EvalFile), hors recherche. En cas d'échec, la DLL garde
+            // le réseau précédent : seul un succès change l'état. Les caches de chaque thread sont refaits
+            // par la DLL à leur prochaine évaluation.
+            IntPtr pReseau = IntPtr.Zero;
+            try
+            {
+                pReseau = Marshal.StringToCoTaskMemUTF8(reseau);
+                if (NNUE_Init(pReseau) == 0)
+                    return false;
+                _nnueDisponible = true;
+                _nnueInitialise = true;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (pReseau != IntPtr.Zero) Marshal.FreeCoTaskMem(pReseau);
+            }
+        }
+
+        public static bool Disponible => _nnueDisponible;
+
         public static int Evaluer(Echiquier echiquier)
         {
             if (!_nnueInitialise)

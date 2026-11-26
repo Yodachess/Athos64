@@ -1,6 +1,7 @@
 #include "probe.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -33,10 +34,23 @@ namespace Stockfish::Probe {
         thread_local std::unique_ptr<Eval::NNUE::AccumulatorStack>  t_accumulators;
         thread_local std::unique_ptr<Eval::NNUE::AccumulatorCaches> t_caches;
 
+        // Génération du réseau : augmentée à chaque chargement réussi (setoption EvalFile).
+        // Les caches d'un thread construits avec un réseau précédent sont alors refaits.
+        std::atomic<int>   g_generation{0};
+        thread_local int   t_generation = -1;
+
 
         bool ensure_thread_context() {
             if (!g_network)
                 return false;
+
+            const int generation = g_generation.load(std::memory_order_acquire);
+            if (t_generation != generation)
+            {
+                t_accumulators.reset();
+                t_caches.reset();
+                t_generation = generation;
+            }
 
             if (!t_accumulators)
                 t_accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
@@ -226,9 +240,9 @@ namespace Stockfish::Probe {
         g_evalFile = evalFile;
         g_network  = std::move(network);
 
-        // Réinitialisation du contexte du thread appelant.
-        t_accumulators.reset();
-        t_caches.reset();
+        // Nouvelle génération : chaque thread refera ses caches à sa prochaine évaluation.
+        // Un échec de chargement (plus haut) laisse le réseau précédent en place.
+        g_generation.fetch_add(1, std::memory_order_release);
 
         return ensure_thread_context();
     }

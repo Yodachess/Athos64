@@ -241,7 +241,8 @@ namespace Athos64
         private void DispatcherSurThreadAsynchrone(List<string> jetons)
         {   //  Envoie une commande UCI à traiter sur le thread asynchrone
             lock (_verrouFile)
-            {   // Ajoute la commande à la file d'attente asynchrone
+            {   // Ajoute la commande à la file d'attente asynchrone (un "go" compte comme recherche en cours dès maintenant)
+                System.Threading.Interlocked.Increment(ref _recherchesEnCours);
                 _fileAsynchrone.Enqueue(jetons);
                 _signalAsynchrone.Set();
             }
@@ -334,8 +335,11 @@ namespace Athos64
                     if (int.TryParse(valeurOption, out int nbThreads) && nbThreads > 0)
                     {
                         NombreThreads = Math.Clamp(nbThreads, 1, 128);  // Bornage de sécurité (1 à 128)
-                        _fluxUCI.EcrireLigne($"info string DEBUG THREADS: nombreThreads recu = {NombreThreads}");
+                        _fluxUCI.EcrireLigne($"info string Threads = {NombreThreads}.");
                     }
+                    break;
+                case "evalfile":
+                    ChangerReseau(indexValue != -1 ? string.Join(" ", jetons.Skip(indexValue + 1)) : string.Empty);
                     break;
                 /*      RALENTIT LE MOTEUR DE MANIÈRE SIGNIFICATIVE, DONC DÉSACTIVÉ POUR L'INSTANT
                 case "multipv":
@@ -355,6 +359,39 @@ namespace Athos64
                     break;
             }
         }
+        private void ChangerReseau(string fichier)
+        {   // Option EvalFile (2026-11-26) : elle était annoncée mais ignorée. Chemin relatif au dossier courant ou absolu.
+            // Un nom de fichier contenant des espaces est accepté (tous les jetons après "value").
+            fichier = fichier.Trim();
+            if (fichier.Length == 0)
+            {
+                _fluxUCI.EcrireLigne("info string EvalFile : nom de fichier manquant.");
+                return;
+            }
+            if (fichier == NetworkFile && BrunoNNUE.Disponible)
+            {   // Les interfaces envoient souvent la valeur par défaut au démarrage : rien à recharger
+                _fluxUCI.EcrireLigne($"info string EvalFile = {fichier} (déjà chargé).");
+                return;
+            }
+            if (Volatile.Read(ref _recherchesEnCours) > 0)
+            {
+                _fluxUCI.EcrireLigne("info string EvalFile : impossible pendant une recherche.");
+                return;
+            }
+            if (BrunoNNUE.ChangerReseau(fichier))
+            {   // Les scores gardés dans la table viennent de l'ancien réseau
+                NetworkFile = fichier;
+                Recherche.ReinitialiserMoteur(Recherche.TT);
+                _fluxUCI.EcrireLigne($"info string EvalFile = {fichier} chargé.");
+            }
+            else
+            {
+                _fluxUCI.EcrireLigne(BrunoNNUE.Disponible
+                    ? $"info string EvalFile : échec du chargement de {fichier}, le réseau {NetworkFile} reste en place."
+                    : $"info string EvalFile : échec du chargement de {fichier}, aucun réseau chargé.");
+            }
+        }
+
 		public static void PerfBench(List<string> commande)
 		{   // Par défaut profondeur 6
 			int profondeur = 6;

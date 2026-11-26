@@ -23,6 +23,9 @@ namespace Athos64
         // Profondeur maximale d'une recherche limitée par le temps (et d'un "go depth N")
         private const int PROFONDEUR_MAX_TEMPS = 64;
 
+        // Nombre de "go" mis en file et pas encore terminés : le réseau ne se change pas pendant une recherche
+        private static int _recherchesEnCours = 0;
+
         private void AllerAsynchrone(List<string> jetons)
         {   // Traite la commande "go" sur le thread asynchrone
             int profondeur = ProfondeurDeRecherche;
@@ -121,13 +124,19 @@ namespace Athos64
 
             _fluxUCI.EcrireDebug($"Lancement recherche profondeur: {profondeur}");
 
-            // 3. Recherche avec récupération du tuple, puis affichage du bestmove final (seul endroit autorisé à le faire)
-            var resultatRecherche = Recherche.Chercher(_echiquier, profondeur, gestionTemps, (info) => _fluxUCI.EcrireLigne(info));
-            // En ponder, le protocole UCI interdit d'envoyer le bestmove avant le ponderhit ou le stop,
-            // même si la recherche est déjà finie (mat trouvé, profondeur maximale atteinte)
-            while (gestionTemps.EnPonder && !gestionTemps.StopRecu)
-                System.Threading.Thread.Sleep(2);
-            EnvoyerMeilleurCoup(resultatRecherche);
+            try
+            {   // 3. Recherche avec récupération du tuple, puis affichage du bestmove final (seul endroit autorisé à le faire)
+                var resultatRecherche = Recherche.Chercher(_echiquier, profondeur, gestionTemps, (info) => _fluxUCI.EcrireLigne(info));
+                // En ponder, le protocole UCI interdit d'envoyer le bestmove avant le ponderhit ou le stop,
+                // même si la recherche est déjà finie (mat trouvé, profondeur maximale atteinte)
+                while (gestionTemps.EnPonder && !gestionTemps.StopRecu)
+                    System.Threading.Thread.Sleep(2);
+                EnvoyerMeilleurCoup(resultatRecherche);
+            }
+            finally
+            {   // Compté au moment où le "go" est mis en file (DispatcherSurThreadAsynchrone)
+                System.Threading.Interlocked.Decrement(ref _recherchesEnCours);
+            }
             GC.Collect(1, GCCollectionMode.Forced, false);
         }
 
